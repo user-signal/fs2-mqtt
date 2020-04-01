@@ -5,3 +5,5 @@ addSbtPlugin("org.scoverage" % "sbt-coveralls" % "1.2.7")
 addSbtPlugin("org.scalariform" % "sbt-scalariform" % "1.8.3")
 
 addSbtPlugin("com.jsuereth" % "sbt-pgp" % "2.0.0")
+
+addSbtPlugin("ch.epfl.scala" % "sbt-bloop" % "1.4.0-RC1")

@@ -23,7 +23,7 @@ lazy val commonSettings = Seq(
     "-language:existentials",
     "-language:higherKinds",
     "-language:implicitConversions",
-    "-Xfatal-warnings",
+//    "-Xfatal-warnings",
     "-Xlint:_",
     "-Ywarn-dead-code",
     "-Ywarn-numeric-widen",
@@ -51,7 +51,11 @@ lazy val core = project
       "com.typesafe.akka" %% "akka-stream" % "2.5.27",
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.27",
       "org.scodec" %% "scodec-core" % "1.11.4",
-      "org.scalaz" %% "scalaz-core" % "7.2.30")
+      "org.scodec" %% "scodec-stream" % "2.0.0",
+      "org.scalaz" %% "scalaz-core" % "7.2.30",
+      "co.fs2" %% "fs2-core" % "2.2.1",
+      "co.fs2" %% "fs2-io" % "2.2.1"
+)
   ))
 
 lazy val examples = project
