@@ -1,39 +1,46 @@
 package net.sigusr.mqtt
 
+import java.net.InetSocketAddress
+
+import cats.effect.concurrent.Deferred
 import cats.effect.{Blocker, ExitCode, IO, IOApp}
+import fs2.Stream
+import fs2.concurrent.SignallingRef
 import fs2.io.tcp.SocketGroup
-import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
-import net.sigusr.mqtt.impl.frames.{ConnectFrame, ConnectVariableHeader, DisconnectFrame, Header, SubscribeFrame}
-import net.sigusr.mqtt.impl.net.BitVectorSocket
+import net.sigusr.mqtt.api.Message
+import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
+import net.sigusr.mqtt.impl.net.BrockerConnector
+import net.sigusr.mqtt.impl.protocol.Connection
 
 import scala.concurrent.duration._
 
 object Main extends IOApp {
+
+  val localSubscriber: String = "Local-Subscriber"
+  val stopTopic: String = s"$localSubscriber/stop"
+
   override def run(args: List[String]): IO[ExitCode] = {
+    val topics = args.toVector
     Blocker[IO].use { blocker =>
       SocketGroup[IO](blocker).use { socketGroup =>
-        BitVectorSocket[IO]("localhost", 1883, Int.MaxValue.seconds, 3.seconds, socketGroup).use { client =>
-          val header = Header(dup = false, AtMostOnce.value)
-          val connectVariableHeader = ConnectVariableHeader(userNameFlag = false, passwordFlag = false, willRetain = true, ExactlyOnce.value, willFlag = false, cleanSession = false, 128)
-          val connectMessage = ConnectFrame(header, connectVariableHeader, "clientId", None, None, None, None)
-          val disconnectMessage = DisconnectFrame(header)
-          val topics = Vector(("topic0", AtMostOnce.value), ("topic1", AtLeastOnce.value), ("topic2", ExactlyOnce.value))
-          val subscribeFrame = SubscribeFrame(header, 3, topics)
-          for {
-            _ <- IO(println(connectMessage))
-            _ <- client.send(connectMessage)
-            f <- client.receive()
-            _ <- IO(println(f))
-            _ <- IO(println(subscribeFrame))
-            _ <- client.send(subscribeFrame)
-            f <- client.receive()
-            f <- client.receive()
-            _ <- IO(println(f))
-            _ <- IO(println(disconnectMessage))
-            _ <- client.send(disconnectMessage)
-          } yield ExitCode.Success
+        socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
+          val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds)
+          Connection(bc, "clientId").use { connection =>
+            for {
+              stopSignal <- SignallingRef[IO, Boolean](false)
+              _ <- connection.subscribe((stopTopic +: topics) zip Vector.fill(topics.length + 1) { AtMostOnce }, 1)
+              _ <- connection.subscriptions().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
+            } yield ExitCode.Success
+          }
         }
       }
     }
+  }
+
+  private def processMessages(stopSignal: SignallingRef[IO, Boolean])(message: Message): Stream[IO, Unit] = message match {
+    case Message(Main.stopTopic, _) => Stream.eval_(stopSignal.set(true))
+    case Message(topic, payload) => Stream.eval(IO {
+      println(s"[$topic] ${new String(payload.toArray, "UTF-8")}")
+    })
   }
 }

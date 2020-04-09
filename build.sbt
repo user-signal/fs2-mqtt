@@ -1,7 +1,6 @@
 import com.typesafe.sbt.SbtScalariform._
 import sbt.Keys._
 import sbt._
-
 import scalariform.formatter.preferences._
 
 lazy val IntegrationTest = config("it") extend Test
@@ -44,18 +43,22 @@ lazy val core = project
     resolvers += "Scalaz Bintray Repo" at "https://dl.bintray.com/scalaz/releases",
 
     libraryDependencies ++= Seq(
-      "com.beachape" %% "enumeratum" % "1.5.15",
-      "org.specs2" %% "specs2-core" % "4.8.3" % "test",
       "com.typesafe.akka" %% "akka-actor" % "2.5.27",
       "com.typesafe.akka" %% "akka-testkit" % "2.5.27",
       "com.typesafe.akka" %% "akka-stream" % "2.5.27",
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.27",
-      "org.scodec" %% "scodec-core" % "1.11.4",
-      "org.scodec" %% "scodec-stream" % "2.0.0",
-      "org.scalaz" %% "scalaz-core" % "7.2.30",
-      "co.fs2" %% "fs2-core" % "2.2.1",
-      "co.fs2" %% "fs2-io" % "2.2.1"
-)
+
+      "com.beachape" %% "enumeratum"    % "1.5.15",
+      "eu.timepit"   %% "refined"       % "0.9.13",
+      "eu.timepit"   %% "refined-cats"  % "0.9.13",
+      "io.estatico"  %% "newtype"       % "0.4.3",
+      "org.specs2"   %% "specs2-core"   % "4.8.3" % "test",
+      "org.scodec"   %% "scodec-core"   % "1.11.4",
+      "org.scodec"   %% "scodec-stream" % "2.0.0",
+      "org.scalaz"   %% "scalaz-core"   % "7.2.30",
+      "co.fs2"       %% "fs2-core"      % "2.2.1",
+      "co.fs2"       %% "fs2-io"        % "2.2.1"
+    )
   ))
 
 lazy val examples = project
