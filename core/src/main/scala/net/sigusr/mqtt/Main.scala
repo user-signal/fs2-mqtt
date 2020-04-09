@@ -2,7 +2,6 @@ package net.sigusr.mqtt
 
 import java.net.InetSocketAddress
 
-import cats.effect.concurrent.Deferred
 import cats.effect.{Blocker, ExitCode, IO, IOApp}
 import fs2.Stream
 import fs2.concurrent.SignallingRef
@@ -24,7 +23,7 @@ object Main extends IOApp {
     Blocker[IO].use { blocker =>
       SocketGroup[IO](blocker).use { socketGroup =>
         socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
-          val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds)
+          val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, true)
           Connection(bc, "clientId").use { connection =>
             for {
               stopSignal <- SignallingRef[IO, Boolean](false)
