@@ -18,69 +18,43 @@ package net.sigusr.mqtt.examples
 
 import java.net.InetSocketAddress
 
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
-import com.typesafe.config.ConfigFactory
+import cats.effect.{Blocker, ExitCode, IO, IOApp}
+import fs2.Stream
+import fs2.concurrent.SignallingRef
+import fs2.io.tcp.SocketGroup
+import net.sigusr.mqtt.api.Message
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
-import net.sigusr.mqtt.api._
+import net.sigusr.mqtt.impl.net.BrockerConnector
+import net.sigusr.mqtt.impl.protocol.Connection
 
-class LocalSubscriber(topics: Vector[String]) extends Actor {
+import scala.concurrent.duration._
+
+object LocalSubscriber extends IOApp {
 
   val stopTopic: String = s"$localSubscriber/stop"
 
-  context.actorOf(Manager.props(new InetSocketAddress(1883))) ! Connect(localSubscriber)
-
-  def receive: Receive = {
-    case Connected =>
-      println("Successfully connected to localhost:1883")
-      sender() ! Subscribe((stopTopic +: topics) zip Vector.fill(topics.length + 1) { AtMostOnce }, 1)
-      context become ready(sender())
-    case ConnectionFailure(reason) =>
-      println(s"Connection to localhost:1883 failed [$reason]")
+  override def run(args: List[String]): IO[ExitCode] = {
+    val topics = args.toVector
+    Blocker[IO].use { blocker =>
+      SocketGroup[IO](blocker).use { socketGroup =>
+        socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
+          val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, true)
+          Connection(bc, "clientId").use { connection =>
+            for {
+              stopSignal <- SignallingRef[IO, Boolean](false)
+              _ <- connection.subscribe((stopTopic +: topics) zip Vector.fill(topics.length + 1) { AtMostOnce }, 1)
+              _ <- connection.subscriptions().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
+            } yield ExitCode.Success
+          }
+        }
+      }
+    }
   }
 
-  def ready(mqttManager: ActorRef): Receive = {
-    case Subscribed(_, MessageId(1)) =>
-      println("Successfully subscribed to topics:")
-      println(topics.mkString(" ", ",\n ", ""))
-    case Message(`stopTopic`, _) =>
-      mqttManager ! Disconnect
-      context become disconnecting
-    case Message(topic, payload) =>
-      val message = new String(payload.toArray, "UTF-8")
-      println(s"[$topic] $message")
-  }
-
-  def disconnecting(): Receive = {
-    case Disconnected =>
-      println("Disconnected from localhost:1883")
-      LocalSubscriber.shutdown()
-  }
-}
-
-object LocalSubscriber {
-
-  val config =
-    """akka {
-         loglevel = INFO
-         actor {
-            debug {
-              receive = off
-              autoreceive = off
-              lifecycle = off
-            }
-         }
-       }
-    """
-  val system: ActorSystem = ActorSystem(localSubscriber, ConfigFactory.parseString(config))
-
-  def shutdown(): Unit = {
-    system.terminate()
-    println(s"<$localSubscriber> stopped")
-  }
-
-  def main(args: Array[String]): Unit = {
-    system.actorOf(Props(classOf[LocalSubscriber], args.toVector))
-    sys.addShutdownHook { shutdown() }
-    println(s"<$localSubscriber> started")
+  private def processMessages(stopSignal: SignallingRef[IO, Boolean])(message: Message): Stream[IO, Unit] = message match {
+    case Message(LocalSubscriber.stopTopic, _) => Stream.eval_(stopSignal.set(true))
+    case Message(topic, payload) => Stream.eval(IO {
+      println(s"[$topic] ${new String(payload.toArray, "UTF-8")}")
+    })
   }
 }
