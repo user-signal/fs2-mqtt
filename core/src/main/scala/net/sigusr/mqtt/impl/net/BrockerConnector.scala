@@ -16,6 +16,7 @@ import scala.concurrent.duration.FiniteDuration
 trait BrockerConnector[F[_]] {
 
   def send(frame: Frame): F[Unit]
+
   def frameStream: Stream[F, Frame]
 
 }

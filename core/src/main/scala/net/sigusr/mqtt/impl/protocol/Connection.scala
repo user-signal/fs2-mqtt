@@ -1,9 +1,9 @@
 package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.implicits._
-import cats.effect.{Concurrent, ContextShift, Resource}
+import cats.effect.{Concurrent, ContextShift, Resource, Sync}
 import cats.implicits._
-import fs2.concurrent.Queue
+import fs2.concurrent.{Queue, SignallingRef}
 import fs2.{INothing, Stream}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce}
 import net.sigusr.mqtt.api.{DEFAULT_KEEP_ALIVE, Message, MessageId, QualityOfService, Will}
@@ -25,11 +25,14 @@ object Connection {
 
   private val QUEUE_SIZE = 128
 
-  private def pump[F[_]](frameStream: Stream[F, Frame], frameQueue: Queue[F, Frame], messageQueue: Queue[F, Message]): Stream[F, INothing] = {
+  private def pump[F[_]: Sync](frameStream: Stream[F, Frame], frameQueue: Queue[F, Frame], messageQueue: Queue[F, Message], stopSignal: SignallingRef[F, Boolean]): Stream[F, INothing] = {
     frameStream.flatMap {
       case PublishFrame(_: Header, topic: String, _: Int, payload: ByteVector) => Stream.eval_(messageQueue.enqueue1(Message(topic, payload.toArray.toVector)))
       case m => Stream.eval_(frameQueue.enqueue1(m))
-    }
+    }.onComplete(for {
+      _ <- Stream.eval(Sync[F].delay(println(s" ${Console.CYAN}Completed in pump${Console.RESET}")))
+      s <- Stream.eval_(stopSignal.set(true))
+    } yield s)
   }
 
   private def connectMessage(clientId: String, keepAlive: Int, cleanSession: Boolean, will: Option[Will], user: Option[String], password: Option[String]): ConnectFrame = {
@@ -46,34 +49,30 @@ object Connection {
     r <- Resource.make(fromBrockerConnector(brockerConnector, clientId, keepAlive, cleanSession, will, user, password))(_.disconnect)
   } yield r
 
-  private def fromBrockerConnector[F[_]: Concurrent: ContextShift](brockerConnector: BrockerConnector[F], clientId: String, keepAlive: Int, cleanSession: Boolean, will: Option[Will], user: Option[String], password: Option[String]): F[Connection[F]] = {
-    for {
-      frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
-      messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
-      fib <- pump(brockerConnector.frameStream, frameQueue, messageQueue).compile.drain.attempt.flatMap {
-        case Left(e) => Concurrent[F].delay(e.printStackTrace()) // TODO: handle server-initiated shutdown better
-        case Right(a) => a.pure[F]
-      }.start
-      _ <- brockerConnector.send(connectMessage(clientId, keepAlive, cleanSession, will, user, password))
-      _ <- frameQueue.dequeue1 //TODO check
-    } yield new Connection[F] {
+  private def fromBrockerConnector[F[_]: Concurrent: ContextShift](brockerConnector: BrockerConnector[F], clientId: String, keepAlive: Int, cleanSession: Boolean, will: Option[Will], user: Option[String], password: Option[String]): F[Connection[F]] = for {
+    frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
+    messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
+    stopSignal <- SignallingRef[F, Boolean](false)
+    fib <- pump(brockerConnector.frameStream, frameQueue, messageQueue, stopSignal).compile.drain.start
+    _ <- brockerConnector.send(connectMessage(clientId, keepAlive, cleanSession, will, user, password))
+    _ <- frameQueue.dequeue1 //TODO check
+  } yield new Connection[F] {
 
-      override val disconnect: F[Unit] = {
-        val header = Header(dup = false, AtMostOnce.value)
-        val disconnectMessage = DisconnectFrame(header)
-        fib.cancel *> brockerConnector.send(disconnectMessage)
-      }
+    override val disconnect: F[Unit] = {
+      val header = Header(dup = false, AtMostOnce.value)
+      val disconnectMessage = DisconnectFrame(header)
+      fib.cancel *> brockerConnector.send(disconnectMessage)
+    }
 
-      override val subscriptions: Stream[F, Message] = messageQueue.dequeue
+    override val subscriptions: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
 
-      override def subscribe(topics: Vector[(String, QualityOfService)], messageId: MessageId): F[Unit] = {
-        val header = Header(dup = false, AtLeastOnce.value)
-        val subscribeMessage = SubscribeFrame(header, messageId.identifier, topics.map((v: (String, QualityOfService)) => (v._1, v._2.value)))
-        for {
-          _ <- brockerConnector.send(subscribeMessage)
-          _ <- frameQueue.dequeue1 //TODO check
-        } yield ()
-      }
+    override def subscribe(topics: Vector[(String, QualityOfService)], messageId: MessageId): F[Unit] = {
+      val header = Header(dup = false, AtLeastOnce.value)
+      val subscribeMessage = SubscribeFrame(header, messageId.identifier, topics.map((v: (String, QualityOfService)) => (v._1, v._2.value)))
+      for {
+        _ <- brockerConnector.send(subscribeMessage)
+        _ <- frameQueue.dequeue1 //TODO check
+      } yield ()
     }
   }
 }
