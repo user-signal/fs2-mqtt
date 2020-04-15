@@ -23,10 +23,10 @@ lazy val commonSettings = Seq(
     "-language:higherKinds",
     "-language:implicitConversions",
 //    "-Xfatal-warnings",
-    "-Xlint:_",
-    "-Ywarn-dead-code",
-    "-Ywarn-numeric-widen",
-    "-Ywarn-value-discard")
+    "-Xlint:_")
+//    "-Ywarn-dead-code",
+//    "-Ywarn-numeric-widen",
+//    "-Ywarn-value-discard")
 )
 
 lazy val root = (project in file("."))

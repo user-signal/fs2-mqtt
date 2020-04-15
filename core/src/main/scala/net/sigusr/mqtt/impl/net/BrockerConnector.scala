@@ -4,7 +4,7 @@ import cats.MonadError
 import cats.effect.Sync
 import cats.implicits._
 import fs2.io.tcp.Socket
-import fs2.{Chunk, Stream}
+import fs2.{ Chunk, Stream }
 import net.sigusr.mqtt.MonadThrow
 import net.sigusr.mqtt.impl.frames.Frame
 import scodec.Codec
@@ -35,8 +35,7 @@ object BrockerConnector {
       _ <- Sync[F].delay(println(s" → ${Console.GREEN}$frame${Console.RESET}")).whenA(traceMessages)
       _ <- Codec[Frame].encode(frame).fold(
         e => MonadError[F, Throwable].raiseError[Unit](new Exception(e.message)),
-        write
-      )
+        write)
     } yield ()
 
     def frameStream: Stream[F, Frame] = for {

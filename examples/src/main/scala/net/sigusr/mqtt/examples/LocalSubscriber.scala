@@ -17,6 +17,7 @@
 package net.sigusr.mqtt.examples
 
 import java.net.InetSocketAddress
+import java.util.concurrent.TimeUnit
 
 import cats.effect.{Blocker, ExitCode, IO, IOApp}
 import fs2.Stream
@@ -24,8 +25,7 @@ import fs2.concurrent.SignallingRef
 import fs2.io.tcp.SocketGroup
 import net.sigusr.mqtt.api.Message
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
-import net.sigusr.mqtt.impl.net.BrockerConnector
-import net.sigusr.mqtt.impl.protocol.Connection
+import net.sigusr.mqtt.impl.net.{BrockerConnector, Connection}
 
 import scala.concurrent.duration._
 
@@ -42,8 +42,10 @@ object LocalSubscriber extends IOApp {
           Connection(bc, "clientId").use { connection =>
             for {
               stopSignal <- SignallingRef[IO, Boolean](false)
+              _ <- connection.subscriptions().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain.start
               _ <- connection.subscribe((stopTopic +: topics) zip Vector.fill(topics.length + 1) { AtMostOnce }, 1)
-              _ <- connection.subscriptions().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
+              _ <- Stream.fixedRate(FiniteDuration(5, TimeUnit.SECONDS)).take(3).flatMap(_ => Stream.eval_(connection.publish("yolo", "prout".getBytes("UTF-8").toVector))).compile.drain
+              _ <- Stream.eval_(IO.sleep(FiniteDuration(1, TimeUnit.DAYS))).compile.drain
             } yield ExitCode.Success
           }
         }
