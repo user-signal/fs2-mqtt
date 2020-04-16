@@ -25,9 +25,9 @@ object Ticker {
 
     override def reset: F[Unit] = s.set(1)
 
-    override def ticks: Stream[F, Unit] = (for {
-      _ <- Stream.fixedRate(FiniteDuration(1, TimeUnit.SECONDS))
-      t <- Stream.eval(s.modify(l => (l + 1, l)))
-    } yield t).filter(_ % interval == 0).map(_ => ())
+    override def ticks: Stream[F, Unit] =
+      Stream.fixedRate(FiniteDuration(1, TimeUnit.SECONDS)) *>
+        Stream.eval(s.modify(l => (l + 1, l)))
+          .filter(_ % interval == 0).map(_ => ())
   }
 }
