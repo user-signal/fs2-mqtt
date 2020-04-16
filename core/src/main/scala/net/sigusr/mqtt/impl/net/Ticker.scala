@@ -9,7 +9,7 @@ import fs2.concurrent.SignallingRef
 
 import scala.concurrent.duration.FiniteDuration
 
-trait PingTimer[F[_]] {
+trait Ticker[F[_]] {
 
   def reset: F[Unit]
 
@@ -17,13 +17,13 @@ trait PingTimer[F[_]] {
 
 }
 
-object PingTimer {
+object Ticker {
 
-  def apply[F[_]: Concurrent: Timer](interval: Long): F[PingTimer[F]] = for {
+  def apply[F[_]: Concurrent: Timer](interval: Long): F[Ticker[F]] = for {
     s <- SignallingRef[F, Long](1)
-  } yield new PingTimer[F] {
+  } yield new Ticker[F] {
 
-    override def reset: F[Unit] = s.set(1) *> Concurrent[F].delay(println(s"Resetting"))
+    override def reset: F[Unit] = s.set(1)
 
     override def ticks: Stream[F, Unit] = (for {
       _ <- Stream.fixedRate(FiniteDuration(1, TimeUnit.SECONDS))

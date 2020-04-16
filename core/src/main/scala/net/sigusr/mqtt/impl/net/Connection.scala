@@ -29,15 +29,12 @@ object Connection {
   private val zeroId = MessageId(0)
 
 
-  private def pump[F[_]: Sync](frameStream: Stream[F, Frame], frameQueue: Queue[F, Frame], messageQueue: Queue[F, Message], pingTimer: PingTimer[F], stopSignal: SignallingRef[F, Boolean]): Stream[F, INothing] = {
+  private def pump[F[_]: Sync](frameStream: Stream[F, Frame], frameQueue: Queue[F, Frame], messageQueue: Queue[F, Message], pingTimer: Ticker[F], stopSignal: SignallingRef[F, Boolean]): Stream[F, INothing] = {
     frameStream.flatMap {
       case PublishFrame(_: Header, topic: String, _: Int, payload: ByteVector) => Stream.eval_(messageQueue.enqueue1(Message(topic, payload.toArray.toVector)))
       case PingRespFrame(_) => Stream.eval_(Sync[F].delay(println(s" ${Console.CYAN}Todo: Handle ping responses${Console.RESET}")))
       case m => Stream.eval_(frameQueue.enqueue1(m))
-    }.onComplete(for {
-      _ <- Stream.eval(Sync[F].delay(println(s" ${Console.CYAN}Completed in pump${Console.RESET}")))
-      s <- Stream.eval_(stopSignal.set(true))
-    } yield s)
+    }.onComplete(Stream.eval_(stopSignal.set(true)))
   }
 
   private def connectMessage(clientId: String, keepAlive: Int, cleanSession: Boolean, will: Option[Will], user: Option[String], password: Option[String]): ConnectFrame = {
@@ -58,7 +55,7 @@ object Connection {
     frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
     messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
     stopSignal <- SignallingRef[F, Boolean](false)
-    pingTimer <- PingTimer(keepAlive.toLong)
+    pingTimer <- Ticker(keepAlive.toLong)
     framePumper <- pump(brockerConnector.frameStream, frameQueue, messageQueue, pingTimer, stopSignal).compile.drain.start
     _ <- brockerConnector.send(connectMessage(clientId, keepAlive, cleanSession, will, user, password))
     _ <- frameQueue.dequeue1 //TODO check
