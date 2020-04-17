@@ -17,10 +17,10 @@
 package net.sigusr.mqtt.impl.frames
 
 import net.sigusr.mqtt.SpecUtils._
-import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import org.specs2.mutable._
 import scodec.bits._
-import scodec.{ Codec, DecodeResult, Err, SizeBound }
+import scodec.{Codec, DecodeResult, Err, SizeBound}
 
 import scala.util.Random
 

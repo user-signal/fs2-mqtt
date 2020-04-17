@@ -1,9 +1,9 @@
 package net.sigusr.mqtt
 
 import akka.actor._
-import akka.testkit.{ ImplicitSender, TestKit }
+import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.ConfigFactory
-import org.specs2.specification.{ AfterEach, Scope }
+import org.specs2.specification.{AfterEach, Scope}
 
 import scala.concurrent.Future
 

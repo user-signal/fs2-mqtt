@@ -16,8 +16,8 @@
 
 package net.sigusr.mqtt
 
-import org.specs2.matcher.{ Expectable, MatchResult, Matcher }
-import scodec.{ Attempt, Err }
+import org.specs2.matcher.{Expectable, MatchResult, Matcher}
+import scodec.{Attempt, Err}
 
 import scala.util.Random
 

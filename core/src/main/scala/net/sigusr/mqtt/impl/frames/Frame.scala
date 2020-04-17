@@ -34,7 +34,8 @@ case class ConnectFrame(
   topic: Option[String],
   message: Option[String],
   user: Option[String],
-  password: Option[String]) extends Frame
+  password: Option[String]
+) extends Frame
 
 case class ConnackFrame(header: Header, returnCode: Int) extends Frame
 case class PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) extends Frame
@@ -52,7 +53,7 @@ case class DisconnectFrame(header: Header) extends Frame
 
 object Frame {
   implicit val discriminated: Discriminated[Frame, Int] = Discriminated(uint4)
-  implicit val frameCodec = Codec.coproduct[Frame].auto
+  implicit val frameCodec: Codec[Frame] = Codec.coproduct[Frame].auto
 }
 
 object ConnectFrame {
@@ -65,7 +66,8 @@ object ConnectFrame {
         conditional(hdr.willFlag, stringCodec) ::
         conditional(hdr.userNameFlag, stringCodec) ::
         conditional(hdr.passwordFlag, stringCodec)
-    })).as[ConnectFrame]
+    }
+  )).as[ConnectFrame]
 }
 
 object ConnackFrame {

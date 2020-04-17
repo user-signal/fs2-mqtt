@@ -16,8 +16,8 @@
 
 package net.sigusr.mqtt.api
 
-import net.sigusr.mqtt.api.ConnectionFailureReason.{ BadProtocolVersion, BadUserNameOrPassword, IdentifierRejected, NotAuthorized, ServerNotResponding, ServerUnavailable }
-import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
+import net.sigusr.mqtt.api.ConnectionFailureReason._
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import org.specs2.mutable._
 
 object MessagesSpec extends Specification {

@@ -17,7 +17,7 @@
 package net.sigusr.mqtt.impl.protocol
 
 import net.sigusr.mqtt.api.ConnectionFailureReason.ServerNotResponding
-import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.api._
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Registers.RegistersState

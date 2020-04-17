@@ -16,17 +16,19 @@
 
 package net.sigusr.mqtt.impl
 
+import scodec.Codec
 import scodec.bits._
 import scodec.codecs._
 
 package object frames {
 
-  val qosCodec = uint2
-  val returnCodeCodec = uint8
-  val messageIdCodec = uint16
-  val keepAliveCodec = uint16
+  val qosCodec: Codec[Int] = uint2
+  val returnCodeCodec: Codec[Int] = uint8
+  val messageIdCodec: Codec[Int] = uint16
+  val keepAliveCodec: Codec[Int] = uint16
 
   val remainingLengthCodec = new RemainingLengthCodec
-  val stringCodec = variableSizeBytes(uint16, utf8)
-  val bytePaddingCodec = constant(bin"00000000")
+  val stringCodec: Codec[String] = variableSizeBytes(uint16, utf8)
+  val bytePaddingCodec: Codec[Unit] = constant(bin"00000000")
+
 }

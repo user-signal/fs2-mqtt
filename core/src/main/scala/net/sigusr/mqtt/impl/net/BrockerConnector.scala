@@ -4,7 +4,7 @@ import cats.MonadError
 import cats.effect.Sync
 import cats.implicits._
 import fs2.io.tcp.Socket
-import fs2.{ Chunk, Stream }
+import fs2.{Chunk, Stream}
 import net.sigusr.mqtt.MonadThrow
 import net.sigusr.mqtt.impl.frames.Frame
 import scodec.Codec

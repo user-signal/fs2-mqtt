@@ -17,14 +17,14 @@
 package net.sigusr.mqtt.impl.protocol
 
 import net.sigusr.mqtt.SpecUtils._
-import net.sigusr.mqtt.api.ConnectionFailureReason.{ BadUserNameOrPassword, ServerNotResponding }
-import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
+import net.sigusr.mqtt.api.ConnectionFailureReason.{BadUserNameOrPassword, ServerNotResponding}
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.api._
 import net.sigusr.mqtt.impl.frames._
 import org.specs2.mutable.Specification
 import scodec.bits.ByteVector
 
-import scala.collection.immutable.{ TreeMap, TreeSet }
+import scala.collection.immutable.{TreeMap, TreeSet}
 import scala.util.Random
 
 object HandlersSpec extends Specification with Handlers {
