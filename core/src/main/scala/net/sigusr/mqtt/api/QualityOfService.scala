@@ -16,6 +16,7 @@
 
 package net.sigusr.mqtt.api
 
+import cats.Show
 import enumeratum.values._
 
 sealed abstract class QualityOfService(val value: Int) extends IntEnumEntry
@@ -26,4 +27,10 @@ object QualityOfService extends IntEnum[QualityOfService] {
   object ExactlyOnce extends QualityOfService(2)
 
   val values: IndexedSeq[QualityOfService] = findValues
+
+  implicit val showPerson: Show[QualityOfService] = Show.show {
+    case AtMostOnce => "at most once"
+    case AtLeastOnce => "at least once"
+    case ExactlyOnce => "exactly once"
+  }
 }

@@ -9,7 +9,7 @@ object Builders {
 
   private val ZERO_ID = 0
 
-  private [net] def subscribeFrame(topics: Vector[(String, QualityOfService)], messageId: Int): SubscribeFrame = {
+  private [net] def subscribeFrame(messageId: Int, topics: Vector[(String, QualityOfService)]) = {
     val header = Header(dup = false, AtLeastOnce.value)
     SubscribeFrame(header, messageId, topics.map((v: (String, QualityOfService)) => (v._1, v._2.value)))
   }

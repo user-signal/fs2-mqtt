@@ -1,5 +1,6 @@
 package net.sigusr.mqtt.impl.net
 
+import cats.effect.concurrent.Deferred
 import cats.effect.{Concurrent, ContextShift, Resource, Timer}
 import cats.implicits._
 import fs2.Stream
@@ -15,7 +16,7 @@ trait Connection[F[_]] {
 
   def subscriptions(): Stream[F, Message]
 
-  def subscribe(topics: Vector[(String, QualityOfService)], messageId: MessageId): F[Unit]
+  def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]]
 
   def publish(topic: String, payload: Vector[Byte], qos: QualityOfService = AtMostOnce, retain: Boolean = false): F[Unit]
 
@@ -48,9 +49,10 @@ object Connection {
     frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
     messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
     stopSignal <- SignallingRef[F, Boolean](false)
+    subs <- Subscriptions[F]
     ids <- IdGenerator[F]
     pingTicker <- Ticker(keepAlive.toLong, brockerConnector.send(pingReqFrame))
-    framePumper <- Pumper(brockerConnector.frameStream, frameQueue, messageQueue, stopSignal)
+    framePumper <- Pumper(brockerConnector.frameStream, frameQueue, messageQueue, subs, stopSignal)
     _ <- brockerConnector.send(connectFrame(clientId, keepAlive, cleanSession, will, user, password))
     _ <- frameQueue.dequeue1 //TODO check
   } yield new Connection[F] {
@@ -65,12 +67,14 @@ object Connection {
 
     override val subscriptions: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
 
-    override def subscribe(topics: Vector[(String, QualityOfService)], messageId: MessageId): F[Unit] = {
+    override def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]] = {
       for {
         messageId <- ids.next
-        _ <- send(subscribeFrame(topics, messageId))
-        _ <- frameQueue.dequeue1
-      } yield ()
+        d <- Deferred[F, Vector[Int]]
+        _ <- subs.add(messageId, d)
+        _ <- send(subscribeFrame(messageId, topics))
+        v <- d.get
+      } yield topics.zip(v).map(p => (p._1._1, QualityOfService.withValue(p._2)))
     }
 
     override def publish(topic: String, payload: Vector[Byte], qos: QualityOfService, retain: Boolean): F[Unit] = {

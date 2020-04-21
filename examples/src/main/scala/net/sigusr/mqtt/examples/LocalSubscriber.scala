@@ -20,6 +20,8 @@ import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 
 import cats.effect.{Blocker, ExitCode, IO, IOApp}
+import cats.effect.Console.io._
+import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
 import fs2.io.tcp.SocketGroup
@@ -43,7 +45,10 @@ object LocalSubscriber extends IOApp {
             SignallingRef[IO, Boolean](false).flatMap { stopSignal =>
               val prog1 = connection.subscriptions().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
               val prog2 = for {
-                _ <- connection.subscribe((stopTopic +: topics) zip Vector.fill(topics.length + 1) { AtMostOnce }, 1)
+                s <- connection.subscribe((stopTopic +: topics) zip Vector.fill(topics.length + 1) { AtMostOnce })
+                _ <- s.traverse { p =>
+                  putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
+                }
                 _ <- IO.sleep(FiniteDuration(5, TimeUnit.SECONDS))
                 _ <- connection.publish("yolo", payload("5s"))
                 _ <- IO.sleep(FiniteDuration(3, TimeUnit.SECONDS))
