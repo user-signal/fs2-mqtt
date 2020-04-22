@@ -15,6 +15,7 @@
  */
 
 package net.sigusr.mqtt.api
+import cats.Show
 import enumeratum.values._
 
 sealed abstract class ConnectionFailureReason(val value: Int) extends IntEnumEntry
@@ -28,4 +29,14 @@ object ConnectionFailureReason extends IntEnum[ConnectionFailureReason] {
   case object NotAuthorized extends ConnectionFailureReason(5)
 
   val values: IndexedSeq[ConnectionFailureReason] = findValues
+
+  implicit val showPerson: Show[ConnectionFailureReason] = Show.show {
+    case ServerNotResponding => "Server not responding"
+    case BadProtocolVersion => "Bad protocol version"
+    case IdentifierRejected => "Identifier rejected"
+    case ServerUnavailable => "Server unavailable"
+    case BadUserNameOrPassword => "Bad user name or password"
+    case NotAuthorized => "Not authorized"
+  }
+
 }

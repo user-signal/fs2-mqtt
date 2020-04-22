@@ -5,8 +5,9 @@ import cats.effect.{Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.{Queue, SignallingRef}
+import net.sigusr.mqtt.MonadThrow
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
-import net.sigusr.mqtt.api.{DEFAULT_KEEP_ALIVE, Message, MessageId, QualityOfService, Will}
+import net.sigusr.mqtt.api.{ConnectionFailure, ConnectionFailureReason, DEFAULT_KEEP_ALIVE, Message, ProtocolError, QualityOfService, Will}
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.net.Builders._
 
@@ -47,6 +48,15 @@ object Connection {
       password
     ))(_.disconnect)
 
+  def checkConnectionAck[F[_]: Sync: MonadThrow](f:Frame): F[Unit] = f match {
+    case ConnackFrame(_:Header, 0) =>
+      Sync[F].unit
+    case ConnackFrame(_, returnCode) =>
+      ConnectionFailure(ConnectionFailureReason.withValue(returnCode)).raiseError[F, Unit]
+    case _ =>
+      ProtocolError.raiseError[F, Unit]
+  }
+
   private def fromBrockerConnector[F[_]: Concurrent: Timer: ContextShift](brockerConnector: BrockerConnector[F], clientId: String, keepAlive: Int, cleanSession: Boolean, will: Option[Will], user: Option[String], password: Option[String]): F[Connection[F]] = for {
     frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
     messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
@@ -56,7 +66,8 @@ object Connection {
     pingTicker <- Ticker(keepAlive.toLong, brockerConnector.send(pingReqFrame))
     framePumper <- Pumper(brockerConnector.frameStream, frameQueue, messageQueue, subs, stopSignal)
     _ <- brockerConnector.send(connectFrame(clientId, keepAlive, cleanSession, will, user, password))
-    _ <- frameQueue.dequeue1 //TODO check
+    f <- frameQueue.dequeue1
+    _ <- checkConnectionAck(f)
   } yield new Connection[F] {
 
     private def send(frame: Frame): F[Unit] = brockerConnector.send(frame) *> pingTicker.reset

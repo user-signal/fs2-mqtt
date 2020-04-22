@@ -16,10 +16,14 @@
 
 package net.sigusr.mqtt.api
 
-sealed trait APIResponse
+import scala.util.control.NoStackTrace
+
+sealed trait APIResponse extends NoStackTrace
 
 case object Connected extends APIResponse
 case class ConnectionFailure(reason: ConnectionFailureReason) extends APIResponse
+
+case object ProtocolError extends APIResponse
 
 case object Disconnected extends APIResponse
 

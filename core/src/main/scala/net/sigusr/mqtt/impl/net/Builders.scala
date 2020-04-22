@@ -10,17 +10,15 @@ object Builders {
   private val ZERO_ID = 0
 
   private [net] def subscribeFrame(messageId: Int, topics: Vector[(String, QualityOfService)]) = {
-    val header = Header(dup = false, AtLeastOnce.value)
-    SubscribeFrame(header, messageId, topics.map((v: (String, QualityOfService)) => (v._1, v._2.value)))
+    SubscribeFrame(Header(qos = AtLeastOnce.value), messageId, topics.map((v: (String, QualityOfService)) => (v._1, v._2.value)))
   }
 
   private [net] def unsubscribeFrame(messageId: Int, topics: Vector[String]) = {
-    val header = Header(dup = false, AtLeastOnce.value)
-    UnsubscribeFrame(header, messageId, topics)
+    UnsubscribeFrame(Header(qos = AtLeastOnce.value), messageId, topics)
   }
 
   private [net] def connectFrame(clientId: String, keepAlive: Int, cleanSession: Boolean, will: Option[Will], user: Option[String], password: Option[String]): ConnectFrame = {
-    val header = Header(dup = false, AtMostOnce.value)
+    val header = Header(qos = AtMostOnce.value)
     val retain = will.fold(false)(_.retain)
     val qos = will.fold(AtMostOnce.value)(_.qos.value)
     val topic = will.map(_.topic)
@@ -34,5 +32,5 @@ object Builders {
     PublishFrame(header, topic, ZERO_ID, ByteVector(payload))
   }
 
-  private [net] val pingReqFrame = PingReqFrame(Header(dup = false, AtMostOnce.value))
+  private [net] val pingReqFrame = PingReqFrame(Header(qos = AtMostOnce.value))
 }

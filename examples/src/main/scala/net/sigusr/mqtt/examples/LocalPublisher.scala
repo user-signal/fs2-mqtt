@@ -23,6 +23,7 @@ import cats.effect.{Blocker, ExitCode, IO, IOApp}
 import cats.implicits._
 import fs2.Stream
 import fs2.io.tcp.SocketGroup
+import net.sigusr.mqtt.api.ConnectionFailure
 import net.sigusr.mqtt.impl.net.{BrockerConnector, Connection}
 
 import scala.concurrent.duration._
@@ -49,18 +50,23 @@ object LocalPublisher extends IOApp {
         SocketGroup[IO](blocker).use { socketGroup =>
           socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
             val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
-            Connection(bc, s"$localPublisher").use { connection =>
+            Connection(bc, s"$localPublisher", user = Some(localPublisher), password = Some("yala")).use { connection =>
               (for {
                 m <- ticks().zipRight(randomMessage(messages))
                 _ <- Stream.eval(putStrLn(s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} message ${Console.BOLD}$m${Console.RESET}"))
-                _ <- Stream.eval_(connection.publish(topic, payload(m)))
+                _ <- Stream.eval(connection.publish(topic, payload(m)))
               } yield ()).compile.drain
             }
           }
         }
       }.as(ExitCode.Success)
-    } else {
-      putStrLn(s"${Console.RED}At least a « topic » and one or more « messages » should be provided.${Console.RESET}").as(ExitCode.Error)
+    }.handleErrorWith {
+      case ConnectionFailure(reason) =>
+        putStrLn(s"Connection failure: ${Console.RED}${reason.show}${Console.RESET}").as(ExitCode.Error)
+    }
+    else {
+      putStrLn(s"${Console.RED}At least a « topic » and one or more « messages » should be provided.${Console.RESET}")
+        .as(ExitCode.Error)
     }
   }
 }

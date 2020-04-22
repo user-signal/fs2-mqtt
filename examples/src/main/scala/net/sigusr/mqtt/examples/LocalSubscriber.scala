@@ -24,7 +24,7 @@ import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
 import fs2.io.tcp.SocketGroup
-import net.sigusr.mqtt.api.Message
+import net.sigusr.mqtt.api.{ConnectionFailure, Message}
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
 import net.sigusr.mqtt.impl.net.{BrockerConnector, Connection}
 
@@ -40,7 +40,7 @@ object LocalSubscriber extends IOApp {
       SocketGroup[IO](blocker).use { socketGroup =>
         socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
           val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
-          Connection(bc, s"$localSubscriber").use { connection =>
+          Connection(bc, s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo")).use { connection =>
             SignallingRef[IO, Boolean](false).flatMap { stopSignal =>
               val prog1 = connection.subscriptions().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
               val prog2 = for {
@@ -51,7 +51,7 @@ object LocalSubscriber extends IOApp {
                 _ <- IO.sleep(23.seconds)
                 topic = topics.take(1)
                 _ <- connection.unsubscribe(topic)
-                _ <- putStrLn(s"Topic ${Console.CYAN}$topic${Console.RESET} unsubscribed")
+                _ <- putStrLn(s"Topic ${Console.CYAN}${topic.mkString(", ")}${Console.RESET} unsubscribed")
               } yield ()
               for {
                 fiber1 <- prog1.start
@@ -63,6 +63,9 @@ object LocalSubscriber extends IOApp {
         }
       }
     }
+  }.handleErrorWith {
+    case ConnectionFailure(reason) =>
+      putStrLn(s"Connection failure: ${Console.RED}${reason.show}${Console.RESET}").as(ExitCode.Error)
   }
 
   private def processMessages(stopSignal: SignallingRef[IO, Boolean])(message: Message): Stream[IO, Unit] = message match {
