@@ -17,72 +17,51 @@
 package net.sigusr.mqtt.examples
 
 import java.net.InetSocketAddress
+import java.util.concurrent.TimeUnit
 
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
-import com.typesafe.config.ConfigFactory
-import net.sigusr.mqtt.api._
+import cats.effect.Console.io._
+import cats.effect.{Blocker, ExitCode, IO, IOApp}
+import cats.implicits._
+import fs2.Stream
+import fs2.io.tcp.SocketGroup
+import net.sigusr.mqtt.impl.net.{BrockerConnector, Connection}
 
-import scala.concurrent.duration.{ FiniteDuration, _ }
+import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.Random
 
-class LocalPublisher(toPublish: Vector[String]) extends Actor {
+object LocalPublisher extends IOApp {
 
-  import context.dispatcher
+  private val random: Stream[IO, Int] = Stream.eval(IO.delay(Math.abs(Random.nextInt()))).repeat
 
-  context.actorOf(Manager.props(new InetSocketAddress(1883))) ! Connect(localSubscriber)
+  private def ticks(): Stream[IO, Unit] =
+    random >>= { r =>
+      val interval = r % 2000 + 1000
+      Stream.sleep(FiniteDuration(interval, TimeUnit.MILLISECONDS))
+    }
 
-  val length: Int = toPublish.length
+  private def randomMessage(messages: Vector[String]): Stream[IO, String] =
+    random >>= (r => Stream.emit(messages(r % messages.length)))
 
-  def scheduleRandomMessage(): Unit = {
-    val message = toPublish(Random.nextInt(length))
-    context.system.scheduler.scheduleOnce(FiniteDuration(Random.nextInt(2000).toLong + 1000, MILLISECONDS), self, message)
-    ()
-  }
-
-  def receive: Receive = {
-    case Connected =>
-      println("Successfully connected to localhost:1883")
-      println(s"Ready to publish to topic [ $localPublisher ]")
-      scheduleRandomMessage()
-      context become ready(sender())
-    case ConnectionFailure(reason) =>
-      println(s"Connection to localhost:1883 failed [$reason]")
-  }
-
-  def ready(mqttManager: ActorRef): Receive = {
-    case m: String =>
-      println(s"Publishing [ $m ]")
-      mqttManager ! Publish(localPublisher, m.getBytes("UTF-8").toVector)
-      scheduleRandomMessage()
-  }
-}
-
-object LocalPublisher {
-
-  val config =
-    """akka {
-         loglevel = INFO
-         actor {
-            debug {
-              receive = off
-              autoreceive = off
-              lifecycle = off
+  override def run(args: List[String]): IO[ExitCode] = {
+    if (args.length > 2) {
+      val topic = args.head
+      val messages = args.drop(1).toVector
+      Blocker[IO].use { blocker =>
+        SocketGroup[IO](blocker).use { socketGroup =>
+          socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
+            val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
+            Connection(bc, s"$localPublisher").use { connection =>
+              (for {
+                m <- ticks().zipRight(randomMessage(messages))
+                _ <- Stream.eval(putStrLn(s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} message ${Console.BOLD}$m${Console.RESET}"))
+                _ <- Stream.eval_(connection.publish(topic, payload(m)))
+              } yield ()).compile.drain
             }
-         }
-       }
-    """
-
-  val system: ActorSystem = ActorSystem(localPublisher, ConfigFactory.parseString(config))
-
-  def shutdown(): Unit = {
-    system.terminate()
-    println(s"<$localPublisher> stopped")
-  }
-
-  def main(args: Array[String]): Unit = {
-    system.actorOf(Props(classOf[LocalPublisher], args.toVector))
-    sys.addShutdownHook { shutdown() }
-    println(s"<$localPublisher> started")
+          }
+        }
+      }.as(ExitCode.Success)
+    } else {
+      putStrLn(s"${Console.RED}At least a « topic » and one or more « messages » should be provided.${Console.RESET}").as(ExitCode.Error)
+    }
   }
 }
-

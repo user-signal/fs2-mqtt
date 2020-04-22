@@ -1,7 +1,7 @@
 package net.sigusr.mqtt.impl.net
 
 import cats.effect.concurrent.Deferred
-import cats.effect.{Concurrent, ContextShift, Resource, Timer}
+import cats.effect.{Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.{Queue, SignallingRef}

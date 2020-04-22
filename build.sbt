@@ -47,8 +47,9 @@ lazy val core = project
       "com.typesafe.akka" %% "akka-testkit" % "2.5.27",
       "com.typesafe.akka" %% "akka-stream" % "2.5.27",
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.27",
-      "org.scalaz"     %% "scalaz-core"   % "7.2.30",
+      "org.scalaz"        %% "scalaz-core"   % "7.2.30",
 
+      "org.typelevel"  %% "kittens"       % "2.1.0",
       "com.beachape"   %% "enumeratum"    % "1.5.15",
       "dev.profunktor" %% "console4cats"  % "0.8.1",
       "eu.timepit"     %% "refined"       % "0.9.13",

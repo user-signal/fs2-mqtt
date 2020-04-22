@@ -17,10 +17,9 @@
 package net.sigusr.mqtt.examples
 
 import java.net.InetSocketAddress
-import java.util.concurrent.TimeUnit
 
-import cats.effect.{Blocker, ExitCode, IO, IOApp}
 import cats.effect.Console.io._
+import cats.effect.{Blocker, ExitCode, IO, IOApp}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
@@ -41,7 +40,7 @@ object LocalSubscriber extends IOApp {
       SocketGroup[IO](blocker).use { socketGroup =>
         socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
           val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
-          Connection(bc, "clientId").use { connection =>
+          Connection(bc, s"$localSubscriber").use { connection =>
             SignallingRef[IO, Boolean](false).flatMap { stopSignal =>
               val prog1 = connection.subscriptions().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
               val prog2 = for {
@@ -49,12 +48,6 @@ object LocalSubscriber extends IOApp {
                 _ <- s.traverse { p =>
                   putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
                 }
-                _ <- IO.sleep(FiniteDuration(5, TimeUnit.SECONDS))
-                _ <- connection.publish("yolo", payload("5s"))
-                _ <- IO.sleep(FiniteDuration(3, TimeUnit.SECONDS))
-                _ <- connection.publish("yolo", payload("3s"))
-                _ <- IO.sleep(FiniteDuration(7, TimeUnit.SECONDS))
-                _ <- connection.publish("yolo", payload("7s"))
               } yield ()
               for {
                 fiber1 <- prog1.start
@@ -68,12 +61,10 @@ object LocalSubscriber extends IOApp {
     }
   }
 
-  private val payload = (_:String).getBytes("UTF-8").toVector
-
   private def processMessages(stopSignal: SignallingRef[IO, Boolean])(message: Message): Stream[IO, Unit] = message match {
     case Message(LocalSubscriber.stopTopic, _) => Stream.eval_(stopSignal.set(true))
     case Message(topic, payload) => Stream.eval(IO {
-      println(s"[$topic] ${new String(payload.toArray, "UTF-8")}")
+      println(s"Topic ${Console.CYAN}$topic${Console.RESET}: ${Console.BOLD}${new String(payload.toArray, "UTF-8")}${Console.RESET}")
     })
   }
 }
