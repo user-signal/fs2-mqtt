@@ -48,6 +48,10 @@ object LocalSubscriber extends IOApp {
                 _ <- s.traverse { p =>
                   putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
                 }
+                _ <- IO.sleep(23.seconds)
+                topic = topics.take(1)
+                _ <- connection.unsubscribe(topic)
+                _ <- putStrLn(s"Topic ${Console.CYAN}$topic${Console.RESET} unsubscribed")
               } yield ()
               for {
                 fiber1 <- prog1.start

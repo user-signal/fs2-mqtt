@@ -18,6 +18,8 @@ trait Connection[F[_]] {
 
   def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]]
 
+  def unsubscribe(topics: Vector[String]): F[Unit]
+
   def publish(topic: String, payload: Vector[Byte], qos: QualityOfService = AtMostOnce, retain: Boolean = false): F[Unit]
 
 }
@@ -77,8 +79,19 @@ object Connection {
       } yield topics.zip(v).map(p => (p._1._1, QualityOfService.withValue(p._2)))
     }
 
+    override def unsubscribe(topics: Vector[String]): F[Unit] = {
+      for {
+        messageId <- ids.next
+        d <- Deferred[F, Vector[Int]]
+        _ <- subs.add(messageId, d)
+        _ <- send(unsubscribeFrame(messageId, topics))
+        _ <- d.get
+      } yield ()
+    }
+
     override def publish(topic: String, payload: Vector[Byte], qos: QualityOfService, retain: Boolean): F[Unit] = {
       send(publishFrame(topic, payload, qos, retain))
     }
+
   }
 }

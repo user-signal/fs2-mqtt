@@ -14,6 +14,11 @@ object Builders {
     SubscribeFrame(header, messageId, topics.map((v: (String, QualityOfService)) => (v._1, v._2.value)))
   }
 
+  private [net] def unsubscribeFrame(messageId: Int, topics: Vector[String]) = {
+    val header = Header(dup = false, AtLeastOnce.value)
+    UnsubscribeFrame(header, messageId, topics)
+  }
+
   private [net] def connectFrame(clientId: String, keepAlive: Int, cleanSession: Boolean, will: Option[Will], user: Option[String], password: Option[String]): ConnectFrame = {
     val header = Header(dup = false, AtMostOnce.value)
     val retain = will.fold(false)(_.retain)

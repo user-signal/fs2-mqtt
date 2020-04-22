@@ -6,7 +6,7 @@ import cats.effect.{Concurrent, Fiber}
 import fs2.Stream
 import fs2.concurrent.{Queue, SignallingRef}
 import net.sigusr.mqtt.api.Message
-import net.sigusr.mqtt.impl.frames.{Frame, Header, PingRespFrame, PublishFrame, SubackFrame}
+import net.sigusr.mqtt.impl.frames.{Frame, Header, PingRespFrame, PublishFrame, SubackFrame, UnsubackFrame}
 import scodec.bits.ByteVector
 
 trait Pumper[F[_]] {}
@@ -24,6 +24,9 @@ object Pumper {
         Stream.eval_(messageQueue.enqueue1(Message(topic, payload.toArray.toVector)))
       case PingRespFrame(_) =>
         Stream.eval_(Concurrent[F].delay(println(s" ${Console.CYAN}Todo: Handle ping responses${Console.RESET}")))
+      case UnsubackFrame(_: Header, messageIdentifier) =>
+        Stream.eval_(subs.remove(messageIdentifier) >>=
+          (_.fold(Concurrent[F].pure(()))(_.complete(Vector.empty))))
       case SubackFrame(_: Header, messageIdentifier, topics) =>
         Stream.eval_(subs.remove(messageIdentifier) >>=
           (_.fold(Concurrent[F].pure(()))(_.complete(topics))))

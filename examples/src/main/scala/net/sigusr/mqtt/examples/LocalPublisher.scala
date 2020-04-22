@@ -17,7 +17,6 @@
 package net.sigusr.mqtt.examples
 
 import java.net.InetSocketAddress
-import java.util.concurrent.TimeUnit
 
 import cats.effect.Console.io._
 import cats.effect.{Blocker, ExitCode, IO, IOApp}
@@ -26,7 +25,7 @@ import fs2.Stream
 import fs2.io.tcp.SocketGroup
 import net.sigusr.mqtt.impl.net.{BrockerConnector, Connection}
 
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration._
 import scala.util.Random
 
 object LocalPublisher extends IOApp {
@@ -36,7 +35,7 @@ object LocalPublisher extends IOApp {
   private def ticks(): Stream[IO, Unit] =
     random >>= { r =>
       val interval = r % 2000 + 1000
-      Stream.sleep(FiniteDuration(interval, TimeUnit.MILLISECONDS))
+      Stream.sleep(interval.milliseconds)
     }
 
   private def randomMessage(messages: Vector[String]): Stream[IO, String] =
