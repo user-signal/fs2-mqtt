@@ -24,9 +24,11 @@ import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
 import fs2.io.tcp.SocketGroup
-import net.sigusr.mqtt.api.{ConnectionFailure, Message}
-import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
+import net.sigusr.mqtt.api.Message
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce}
 import net.sigusr.mqtt.impl.net.{BrockerConnector, Connection}
+import net.sigusr.mqtt.impl.net.Errors
+import net.sigusr.mqtt.impl.net.Errors.ConnectionFailure
 
 import scala.concurrent.duration._
 
@@ -42,9 +44,8 @@ object LocalSubscriber extends IOApp {
           val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
           Connection(bc, s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo")).use { connection =>
             SignallingRef[IO, Boolean](false).flatMap { stopSignal =>
-              val prog1 = connection.subscriptions().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
-              val prog2 = for {
-                s <- connection.subscribe((stopTopic +: topics) zip Vector.fill(topics.length + 1) { AtMostOnce })
+              val subscriber = for {
+                s <- connection.subscribe((stopTopic +: topics) zip Vector.fill(topics.length + 1) { AtLeastOnce })
                 _ <- s.traverse { p =>
                   putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
                 }
@@ -52,11 +53,11 @@ object LocalSubscriber extends IOApp {
                 topic = topics.take(1)
                 _ <- connection.unsubscribe(topic)
                 _ <- putStrLn(s"Topic ${Console.CYAN}${topic.mkString(", ")}${Console.RESET} unsubscribed")
+                _ <- stopSignal.discrete.compile.drain
               } yield ()
+              val reader = connection.subscriptions().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
               for {
-                fiber1 <- prog1.start
-                _ <- prog2
-                _ <- fiber1.join
+                _ <- IO.race(reader, subscriber)
               } yield ExitCode.Success
             }
           }

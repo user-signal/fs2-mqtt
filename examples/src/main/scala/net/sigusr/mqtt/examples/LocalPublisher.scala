@@ -23,8 +23,9 @@ import cats.effect.{Blocker, ExitCode, IO, IOApp}
 import cats.implicits._
 import fs2.Stream
 import fs2.io.tcp.SocketGroup
-import net.sigusr.mqtt.api.ConnectionFailure
+import net.sigusr.mqtt.api.QualityOfService.AtLeastOnce
 import net.sigusr.mqtt.impl.net.{BrockerConnector, Connection}
+import net.sigusr.mqtt.impl.net.Errors._
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -54,7 +55,7 @@ object LocalPublisher extends IOApp {
               (for {
                 m <- ticks().zipRight(randomMessage(messages))
                 _ <- Stream.eval(putStrLn(s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} message ${Console.BOLD}$m${Console.RESET}"))
-                _ <- Stream.eval(connection.publish(topic, payload(m)))
+                _ <- Stream.eval(connection.publish(topic, payload(m), qos = AtLeastOnce))
               } yield ()).compile.drain
             }
           }

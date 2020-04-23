@@ -27,10 +27,8 @@ object Builders {
     ConnectFrame(header, variableHeader, clientId, topic, message, user, password)
   }
 
-  private [net] def publishFrame(topic: String, payload: Vector[Byte], qos: QualityOfService, retain: Boolean) = {
+  private [net] def publishFrame(topic: String, messageId: Option[Int], payload: Vector[Byte], qos: QualityOfService, retain: Boolean) = {
     val header = Header(dup = false, qos.value, retain = retain)
-    PublishFrame(header, topic, ZERO_ID, ByteVector(payload))
+    PublishFrame(header, topic, messageId.getOrElse(ZERO_ID), ByteVector(payload))
   }
-
-  private [net] val pingReqFrame = PingReqFrame(Header(qos = AtMostOnce.value))
 }

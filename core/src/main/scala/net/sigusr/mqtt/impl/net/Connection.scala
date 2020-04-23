@@ -5,11 +5,12 @@ import cats.effect.{Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.{Queue, SignallingRef}
-import net.sigusr.mqtt.MonadThrow
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
-import net.sigusr.mqtt.api.{ConnectionFailure, ConnectionFailureReason, DEFAULT_KEEP_ALIVE, Message, ProtocolError, QualityOfService, Will}
+import net.sigusr.mqtt.api.{ConnectionFailureReason, DEFAULT_KEEP_ALIVE, Message, ProtocolError, QualityOfService, Will}
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.net.Builders._
+import net.sigusr.mqtt.impl.net.Errors._
+import net.sigusr.mqtt.impl.net.Result.QoS
 
 trait Connection[F[_]] {
 
@@ -48,8 +49,8 @@ object Connection {
       password
     ))(_.disconnect)
 
-  def checkConnectionAck[F[_]: Sync: MonadThrow](f:Frame): F[Unit] = f match {
-    case ConnackFrame(_:Header, 0) =>
+  private def checkConnectionAck[F[_]: Sync](f: Frame): F[Unit] = f match {
+    case ConnackFrame(_: Header, 0) =>
       Sync[F].unit
     case ConnackFrame(_, returnCode) =>
       ConnectionFailure(ConnectionFailureReason.withValue(returnCode)).raiseError[F, Unit]
@@ -61,10 +62,10 @@ object Connection {
     frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
     messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
     stopSignal <- SignallingRef[F, Boolean](false)
-    subs <- Subscriptions[F]
+    subs <- PendingResults[F]
     ids <- IdGenerator[F]
-    pingTicker <- Ticker(keepAlive.toLong, brockerConnector.send(pingReqFrame))
-    framePumper <- Pumper(brockerConnector.frameStream, frameQueue, messageQueue, subs, stopSignal)
+    pingTicker <- Ticker(keepAlive.toLong, brockerConnector.send(PingReqFrame(Header())))
+    framePumper <- Pumper(brockerConnector, frameQueue, messageQueue, subs, stopSignal)
     _ <- brockerConnector.send(connectFrame(clientId, keepAlive, cleanSession, will, user, password))
     f <- frameQueue.dequeue1
     _ <- checkConnectionAck(f)
@@ -73,8 +74,7 @@ object Connection {
     private def send(frame: Frame): F[Unit] = brockerConnector.send(frame) *> pingTicker.reset
 
     override val disconnect: F[Unit] = {
-      val header = Header(dup = false, AtMostOnce.value)
-      val disconnectMessage = DisconnectFrame(header)
+      val disconnectMessage = DisconnectFrame(Header())
       ids.cancel *> pingTicker.cancel *> framePumper.cancel *> brockerConnector.send(disconnectMessage)
     }
 
@@ -83,17 +83,18 @@ object Connection {
     override def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]] = {
       for {
         messageId <- ids.next
-        d <- Deferred[F, Vector[Int]]
+        d <- Deferred[F, Result]
         _ <- subs.add(messageId, d)
         _ <- send(subscribeFrame(messageId, topics))
         v <- d.get
-      } yield topics.zip(v).map(p => (p._1._1, QualityOfService.withValue(p._2)))
+        t = v match { case QoS(topics) => topics }
+      } yield topics.zip(t).map(p => (p._1._1, QualityOfService.withValue(p._2)))
     }
 
     override def unsubscribe(topics: Vector[String]): F[Unit] = {
       for {
         messageId <- ids.next
-        d <- Deferred[F, Vector[Int]]
+        d <- Deferred[F, Result]
         _ <- subs.add(messageId, d)
         _ <- send(unsubscribeFrame(messageId, topics))
         _ <- d.get
@@ -101,8 +102,17 @@ object Connection {
     }
 
     override def publish(topic: String, payload: Vector[Byte], qos: QualityOfService, retain: Boolean): F[Unit] = {
-      send(publishFrame(topic, payload, qos, retain))
+      qos match {
+        case QualityOfService.AtMostOnce =>
+          send(publishFrame(topic, None, payload, qos, retain))
+        case QualityOfService.AtLeastOnce | QualityOfService.ExactlyOnce => for {
+          messageId <- ids.next
+          d <- Deferred[F, Result]
+          _ <- subs.add(messageId, d)
+          _ <- send(publishFrame(topic, Some(messageId), payload, qos, retain))
+          _ <- d.get
+        } yield ()
+      }
     }
-
   }
 }
