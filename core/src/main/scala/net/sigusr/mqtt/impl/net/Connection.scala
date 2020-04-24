@@ -64,18 +64,15 @@ object Connection {
     stopSignal <- SignallingRef[F, Boolean](false)
     subs <- PendingResults[F]
     ids <- IdGenerator[F]
-    pingTicker <- Ticker(keepAlive.toLong, brockerConnector.send(PingReqFrame(Header())))
-    framePumper <- Pumper(brockerConnector, frameQueue, messageQueue, subs, stopSignal)
-    _ <- brockerConnector.send(connectFrame(clientId, keepAlive, cleanSession, will, user, password))
+    protocol <- Protocol(brockerConnector, frameQueue, messageQueue, subs, stopSignal, keepAlive.toLong)
+    _ <- protocol.send(connectFrame(clientId, keepAlive, cleanSession, will, user, password))
     f <- frameQueue.dequeue1
     _ <- checkConnectionAck(f)
   } yield new Connection[F] {
 
-    private def send(frame: Frame): F[Unit] = brockerConnector.send(frame) *> pingTicker.reset
-
     override val disconnect: F[Unit] = {
       val disconnectMessage = DisconnectFrame(Header())
-      ids.cancel *> pingTicker.cancel *> framePumper.cancel *> brockerConnector.send(disconnectMessage)
+      ids.cancel *> protocol.send(disconnectMessage)
     }
 
     override val subscriptions: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
@@ -85,7 +82,7 @@ object Connection {
         messageId <- ids.next
         d <- Deferred[F, Result]
         _ <- subs.add(messageId, d)
-        _ <- send(subscribeFrame(messageId, topics))
+        _ <- protocol.send(subscribeFrame(messageId, topics))
         v <- d.get
         t = v match { case QoS(topics) => topics }
       } yield topics.zip(t).map(p => (p._1._1, QualityOfService.withValue(p._2)))
@@ -96,7 +93,7 @@ object Connection {
         messageId <- ids.next
         d <- Deferred[F, Result]
         _ <- subs.add(messageId, d)
-        _ <- send(unsubscribeFrame(messageId, topics))
+        _ <- protocol.send(unsubscribeFrame(messageId, topics))
         _ <- d.get
       } yield ()
     }
@@ -104,12 +101,12 @@ object Connection {
     override def publish(topic: String, payload: Vector[Byte], qos: QualityOfService, retain: Boolean): F[Unit] = {
       qos match {
         case QualityOfService.AtMostOnce =>
-          send(publishFrame(topic, None, payload, qos, retain))
+          protocol.send(publishFrame(topic, None, payload, qos, retain))
         case QualityOfService.AtLeastOnce | QualityOfService.ExactlyOnce => for {
           messageId <- ids.next
           d <- Deferred[F, Result]
           _ <- subs.add(messageId, d)
-          _ <- send(publishFrame(topic, Some(messageId), payload, qos, retain))
+          _ <- protocol.send(publishFrame(topic, Some(messageId), payload, qos, retain))
           _ <- d.get
         } yield ()
       }
