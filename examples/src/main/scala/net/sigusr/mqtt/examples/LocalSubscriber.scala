@@ -25,10 +25,9 @@ import fs2.Stream
 import fs2.concurrent.SignallingRef
 import fs2.io.tcp.SocketGroup
 import net.sigusr.mqtt.api.Message
-import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce}
-import net.sigusr.mqtt.impl.net.{BrockerConnector, Connection}
-import net.sigusr.mqtt.impl.net.Errors
+import net.sigusr.mqtt.api.QualityOfService.AtLeastOnce
 import net.sigusr.mqtt.impl.net.Errors.ConnectionFailure
+import net.sigusr.mqtt.impl.net.{BrockerConnector, Config, Connection}
 
 import scala.concurrent.duration._
 
@@ -42,7 +41,8 @@ object LocalSubscriber extends IOApp {
       SocketGroup[IO](blocker).use { socketGroup =>
         socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
           val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
-          Connection(bc, s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo")).use { connection =>
+          val config = Config(s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo"))
+          Connection(bc, config).use { connection =>
             SignallingRef[IO, Boolean](false).flatMap { stopSignal =>
               val subscriber = for {
                 s <- connection.subscribe((stopTopic +: topics) zip Vector.fill(topics.length + 1) { AtLeastOnce })

@@ -24,7 +24,7 @@ import cats.implicits._
 import fs2.Stream
 import fs2.io.tcp.SocketGroup
 import net.sigusr.mqtt.api.QualityOfService.AtLeastOnce
-import net.sigusr.mqtt.impl.net.{BrockerConnector, Connection}
+import net.sigusr.mqtt.impl.net.{BrockerConnector, Config, Connection}
 import net.sigusr.mqtt.impl.net.Errors._
 
 import scala.concurrent.duration._
@@ -51,7 +51,8 @@ object LocalPublisher extends IOApp {
         SocketGroup[IO](blocker).use { socketGroup =>
           socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
             val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
-            Connection(bc, s"$localPublisher", user = Some(localPublisher), password = Some("yala")).use { connection =>
+            val config = Config(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
+            Connection(bc, config).use { connection =>
               (for {
                 m <- ticks().zipRight(randomMessage(messages))
                 _ <- Stream.eval(putStrLn(s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} message ${Console.BOLD}$m${Console.RESET}"))

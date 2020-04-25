@@ -12,6 +12,15 @@ import net.sigusr.mqtt.impl.net.Builders._
 import net.sigusr.mqtt.impl.net.Errors._
 import net.sigusr.mqtt.impl.net.Result.QoS
 
+sealed case class Config(
+  clientId: String,
+  keepAlive: Int = DEFAULT_KEEP_ALIVE,
+  cleanSession: Boolean = true,
+  will: Option[Will] = None,
+  user: Option[String] = None,
+  password: Option[String] = None
+)
+
 trait Connection[F[_]] {
 
   def disconnect: F[Unit]
@@ -32,22 +41,12 @@ object Connection {
 
   def apply[F[_]: Concurrent: Timer: ContextShift](
     brockerConnector: BrockerConnector[F],
-    clientId: String,
-    keepAlive: Int = DEFAULT_KEEP_ALIVE,
-    cleanSession: Boolean = true,
-    will: Option[Will] = None,
-    user: Option[String] = None,
-    password: Option[String] = None
+    config: Config
   ): Resource[F, Connection[F]] =
     Resource.make(fromBrockerConnector(
       brockerConnector,
-      clientId,
-      keepAlive,
-      cleanSession,
-      will,
-      user,
-      password
-    ))(_.disconnect)
+      config
+  ))(_.disconnect)
 
   private def checkConnectionAck[F[_]: Sync](f: Frame): F[Unit] = f match {
     case ConnackFrame(_: Header, 0) =>
@@ -58,14 +57,14 @@ object Connection {
       ProtocolError.raiseError[F, Unit]
   }
 
-  private def fromBrockerConnector[F[_]: Concurrent: Timer: ContextShift](brockerConnector: BrockerConnector[F], clientId: String, keepAlive: Int, cleanSession: Boolean, will: Option[Will], user: Option[String], password: Option[String]): F[Connection[F]] = for {
+  private def fromBrockerConnector[F[_]: Concurrent: Timer: ContextShift](brockerConnector: BrockerConnector[F], config: Config): F[Connection[F]] = for {
     frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
     messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
     stopSignal <- SignallingRef[F, Boolean](false)
     subs <- PendingResults[F]
     ids <- IdGenerator[F]
-    protocol <- Protocol(brockerConnector, frameQueue, messageQueue, subs, stopSignal, keepAlive.toLong)
-    _ <- protocol.send(connectFrame(clientId, keepAlive, cleanSession, will, user, password))
+    protocol <- Protocol(brockerConnector, frameQueue, messageQueue, subs, stopSignal, config.keepAlive.toLong)
+    _ <- protocol.send(connectFrame(config))
     f <- frameQueue.dequeue1
     _ <- checkConnectionAck(f)
   } yield new Connection[F] {
