@@ -61,9 +61,9 @@ object Connection {
     frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
     messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
     stopSignal <- SignallingRef[F, Boolean](false)
-    subs <- PendingResults[F]
+    pendingResults <- PendingResults[F]
     ids <- IdGenerator[F]
-    protocol <- Protocol(brockerConnector, frameQueue, messageQueue, subs, stopSignal, config.keepAlive.toLong)
+    protocol <- Protocol(brockerConnector, frameQueue, messageQueue, pendingResults, stopSignal, config.keepAlive.toLong)
     _ <- protocol.send(connectFrame(config))
     f <- frameQueue.dequeue1
     _ <- checkConnectionAck(f)
@@ -80,7 +80,7 @@ object Connection {
       for {
         messageId <- ids.next
         d <- Deferred[F, Result]
-        _ <- subs.add(messageId, d)
+        _ <- pendingResults.add(messageId, d)
         _ <- protocol.send(subscribeFrame(messageId, topics))
         v <- d.get
         t = v match { case QoS(topics) => topics }
@@ -91,7 +91,7 @@ object Connection {
       for {
         messageId <- ids.next
         d <- Deferred[F, Result]
-        _ <- subs.add(messageId, d)
+        _ <- pendingResults.add(messageId, d)
         _ <- protocol.send(unsubscribeFrame(messageId, topics))
         _ <- d.get
       } yield ()
@@ -104,7 +104,7 @@ object Connection {
         case QualityOfService.AtLeastOnce | QualityOfService.ExactlyOnce => for {
           messageId <- ids.next
           d <- Deferred[F, Result]
-          _ <- subs.add(messageId, d)
+          _ <- pendingResults.add(messageId, d)
           _ <- protocol.send(publishFrame(topic, Some(messageId), payload, qos, retain))
           _ <- d.get
         } yield ()
