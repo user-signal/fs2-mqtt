@@ -1,17 +1,22 @@
 package net.sigusr.mqtt.impl.net
 
+import cats.effect.concurrent.Deferred
 import cats.effect.implicits._
 import cats.effect.{Concurrent, Timer}
 import cats.implicits._
 import fs2.concurrent.{Queue, SignallingRef}
 import fs2.{INothing, Stream}
-import net.sigusr.mqtt.api.Message
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
+import net.sigusr.mqtt.api.{ConnectionFailureReason, Message, ProtocolError}
 import net.sigusr.mqtt.impl.frames._
+import net.sigusr.mqtt.impl.net.Builders.connectFrame
+import net.sigusr.mqtt.impl.net.Errors.ConnectionFailure
 import net.sigusr.mqtt.impl.net.Result.{Empty, QoS}
 import scodec.bits.ByteVector
 
 trait Protocol[F[_]] {
+
+  def connect(config: Config): F[Unit]
 
   def send: Frame => F[Unit]
 
@@ -27,11 +32,11 @@ object Protocol {
 
   def apply[F[_]: Concurrent: Timer](
     brockerConnector: BrockerConnector[F],
-    frameQueue: Queue[F, Frame],
     pendingResults: PendingResults[F],
     keepAlive: Long
   ): F[Protocol[F]] = {
-    def protocol(messageQueue: Queue[F, Message], pingTicker: Ticker[F]): Frame => Stream[F, INothing] = {
+
+    def protocol(messageQueue: Queue[F, Message], pingTicker: Ticker[F], connected: Deferred[F, Unit]): Frame => Stream[F, INothing] = {
 
       case PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) =>
         header.qos match {
@@ -47,7 +52,7 @@ object Protocol {
         Stream.eval_(pendingResults.remove(messageIdentifier) >>=
           (_.fold(Concurrent[F].pure(()))(_.complete(Empty))))
 
-      case PingRespFrame(_) =>
+      case PingRespFrame(_: Header) =>
         Stream.eval_(Concurrent[F].delay(println(s" ${Console.CYAN}Todo: Handle ping responses${Console.RESET}")))
 
       case UnsubackFrame(_: Header, messageIdentifier) =>
@@ -58,15 +63,22 @@ object Protocol {
         Stream.eval_(pendingResults.remove(messageIdentifier) >>=
           (_.fold(Concurrent[F].pure(()))(_.complete(QoS(topics)))))
 
-      case m => Stream.eval_(frameQueue.enqueue1(m))
+      case ConnackFrame(_: Header, 0) =>
+        Stream.eval_(connected.complete(()))
+      case ConnackFrame(_, returnCode) =>
+        Stream.raiseError[F](ConnectionFailure(ConnectionFailureReason.withValue(returnCode)))
+
+      case _ =>
+        Stream.raiseError[F](ProtocolError)
     }
 
     for {
+      connected <- Deferred[F, Unit]
       messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
       stopSignal <- SignallingRef[F, Boolean](false)
       pingTicker <- Ticker(keepAlive, brockerConnector.send(PingReqFrame(Header())))
       protoStream = brockerConnector.frameStream
-        .flatMap(protocol(messageQueue, pingTicker))
+        .flatMap(protocol(messageQueue, pingTicker, connected))
         .onComplete(Stream.eval(stopSignal.set(true)))
       f <- protoStream.compile.drain.start
     } yield new Protocol[F] {
@@ -76,6 +88,11 @@ object Protocol {
       override def send: Frame => F[Unit] = brockerConnector.send(_) *> pingTicker.reset
 
       override def messages: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
+
+      override def connect(config: Config): F[Unit] =  for {
+        _ <- send(connectFrame(config))
+        _ <- connected.get
+      } yield ()
     }
   }
 }

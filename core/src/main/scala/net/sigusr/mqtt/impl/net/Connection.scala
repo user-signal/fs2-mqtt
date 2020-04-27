@@ -1,15 +1,13 @@
 package net.sigusr.mqtt.impl.net
 
 import cats.effect.concurrent.Deferred
-import cats.effect.{Concurrent, ContextShift, Resource, Sync, Timer}
+import cats.effect.{Concurrent, ContextShift, Resource, Timer}
 import cats.implicits._
 import fs2.Stream
-import fs2.concurrent.Queue
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
-import net.sigusr.mqtt.api.{ConnectionFailureReason, DEFAULT_KEEP_ALIVE, Message, ProtocolError, QualityOfService, Will}
+import net.sigusr.mqtt.api.{DEFAULT_KEEP_ALIVE, Message, QualityOfService, Will}
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.net.Builders._
-import net.sigusr.mqtt.impl.net.Errors._
 import net.sigusr.mqtt.impl.net.Result.QoS
 
 sealed case class Config(
@@ -37,8 +35,6 @@ trait Connection[F[_]] {
 
 object Connection {
 
-  private val QUEUE_SIZE = 128
-
   def apply[F[_]: Concurrent: Timer: ContextShift](
     brockerConnector: BrockerConnector[F],
     config: Config
@@ -48,23 +44,11 @@ object Connection {
       config
   ))(_.disconnect)
 
-  private def checkConnectionAck[F[_]: Sync](f: Frame): F[Unit] = f match {
-    case ConnackFrame(_: Header, 0) =>
-      Sync[F].unit
-    case ConnackFrame(_, returnCode) =>
-      ConnectionFailure(ConnectionFailureReason.withValue(returnCode)).raiseError[F, Unit]
-    case _ =>
-      ProtocolError.raiseError[F, Unit]
-  }
-
   private def fromBrockerConnector[F[_]: Concurrent: Timer: ContextShift](brockerConnector: BrockerConnector[F], config: Config): F[Connection[F]] = for {
-    frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
     pendingResults <- PendingResults[F]
     ids <- IdGenerator[F]
-    protocol <- Protocol(brockerConnector, frameQueue, pendingResults, config.keepAlive.toLong)
-    _ <- protocol.send(connectFrame(config))
-    f <- frameQueue.dequeue1
-    _ <- checkConnectionAck(f)
+    protocol <- Protocol(brockerConnector, pendingResults, config.keepAlive.toLong)
+    _ <- protocol.connect(config)
   } yield new Connection[F] {
 
     override val disconnect: F[Unit] = {
