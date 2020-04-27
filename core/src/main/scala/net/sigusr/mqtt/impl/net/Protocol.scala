@@ -36,7 +36,7 @@ object Protocol {
     keepAlive: Long
   ): F[Protocol[F]] = {
 
-    def protocol(messageQueue: Queue[F, Message], pingTicker: Ticker[F], connected: Deferred[F, Unit]): Frame => Stream[F, INothing] = {
+    def protocol(messageQueue: Queue[F, Message], pingTicker: Ticker[F], connected: Deferred[F, Int]): Frame => Stream[F, INothing] = {
 
       case PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) =>
         header.qos match {
@@ -63,17 +63,15 @@ object Protocol {
         Stream.eval_(pendingResults.remove(messageIdentifier) >>=
           (_.fold(Concurrent[F].pure(()))(_.complete(QoS(topics)))))
 
-      case ConnackFrame(_: Header, 0) =>
-        Stream.eval_(connected.complete(()))
-      case ConnackFrame(_, returnCode) =>
-        Stream.raiseError[F](ConnectionFailure(ConnectionFailureReason.withValue(returnCode)))
+      case ConnackFrame(_: Header, returnCode) =>
+        Stream.eval_(connected.complete(returnCode))
 
       case _ =>
         Stream.raiseError[F](ProtocolError)
     }
 
     for {
-      connected <- Deferred[F, Unit]
+      connected <- Deferred[F, Int]
       messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
       stopSignal <- SignallingRef[F, Boolean](false)
       pingTicker <- Ticker(keepAlive, brockerConnector.send(PingReqFrame(Header())))
@@ -91,8 +89,8 @@ object Protocol {
 
       override def connect(config: Config): F[Unit] =  for {
         _ <- send(connectFrame(config))
-        _ <- connected.get
-      } yield ()
+        r <- connected.get
+      } yield if (r == 0) () else throw ConnectionFailure(ConnectionFailureReason.withValue(r))
     }
   }
 }
