@@ -36,7 +36,11 @@ object Protocol {
     keepAlive: Long
   ): F[Protocol[F]] = {
 
-    def protocol(messageQueue: Queue[F, Message], pingTicker: Ticker[F], connected: Deferred[F, Int]): Frame => Stream[F, INothing] = {
+    def protocol(
+      messageQueue: Queue[F, Message],
+      frameQueue: Queue[F, Frame],
+      connected: Deferred[F, Int]
+    ): Frame => Stream[F, INothing] = {
 
       case PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) =>
         header.qos match {
@@ -44,7 +48,7 @@ object Protocol {
             Stream.eval_(messageQueue.enqueue1(Message(topic, payload.toArray.toVector)))
           case AtLeastOnce.value =>
             Stream.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) *>
-              Stream.eval_(brockerConnector.send(PubackFrame(Header(), messageIdentifier)) *> pingTicker.reset)
+              Stream.eval_(frameQueue.enqueue1(PubackFrame(Header(), messageIdentifier)))
           case ExactlyOnce.value => Stream.empty // Todo
         }
 
@@ -73,23 +77,27 @@ object Protocol {
     for {
       connected <- Deferred[F, Int]
       messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
+      frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
       stopSignal <- SignallingRef[F, Boolean](false)
-      pingTicker <- Ticker(keepAlive, brockerConnector.send(PingReqFrame(Header())))
+      pingTicker <- Ticker(keepAlive, frameQueue.enqueue1(PingReqFrame(Header())))
+      f1 <- frameQueue.dequeue.flatMap {
+        m => Stream.eval(pingTicker.reset) >> Stream.emit(m)
+      }.through(brockerConnector.outFrameStream).compile.drain.start
       protoStream = brockerConnector.frameStream
-        .flatMap(protocol(messageQueue, pingTicker, connected))
+        .flatMap(protocol(messageQueue, frameQueue, connected))
         .onComplete(Stream.eval(stopSignal.set(true)))
-      f <- protoStream.compile.drain.start
+      f2 <- protoStream.compile.drain.start
     } yield new Protocol[F] {
 
-      override def cancel: F[Unit] = pingTicker.cancel *> f.cancel
+      override def cancel: F[Unit] = pingTicker.cancel *> f1.cancel *> f2.cancel
 
-      override def send: Frame => F[Unit] = brockerConnector.send(_) *> pingTicker.reset
+      override def send: Frame => F[Unit] = frameQueue.enqueue1
 
       override def messages: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
 
       override def connect(config: Config): F[Unit] =  for {
         _ <- send(connectFrame(config))
-        r <- connected.get
+          r <- connected.get
       } yield if (r == 0) () else throw ConnectionFailure(ConnectionFailureReason.withValue(r))
     }
   }
