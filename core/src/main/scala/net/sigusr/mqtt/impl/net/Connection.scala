@@ -4,7 +4,7 @@ import cats.effect.concurrent.Deferred
 import cats.effect.{Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import fs2.Stream
-import fs2.concurrent.{Queue, SignallingRef}
+import fs2.concurrent.Queue
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
 import net.sigusr.mqtt.api.{ConnectionFailureReason, DEFAULT_KEEP_ALIVE, Message, ProtocolError, QualityOfService, Will}
 import net.sigusr.mqtt.impl.frames._
@@ -25,7 +25,7 @@ trait Connection[F[_]] {
 
   def disconnect: F[Unit]
 
-  def subscriptions(): Stream[F, Message]
+  def messages(): Stream[F, Message]
 
   def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]]
 
@@ -59,11 +59,9 @@ object Connection {
 
   private def fromBrockerConnector[F[_]: Concurrent: Timer: ContextShift](brockerConnector: BrockerConnector[F], config: Config): F[Connection[F]] = for {
     frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
-    messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
-    stopSignal <- SignallingRef[F, Boolean](false)
     pendingResults <- PendingResults[F]
     ids <- IdGenerator[F]
-    protocol <- Protocol(brockerConnector, frameQueue, messageQueue, pendingResults, stopSignal, config.keepAlive.toLong)
+    protocol <- Protocol(brockerConnector, frameQueue, pendingResults, config.keepAlive.toLong)
     _ <- protocol.send(connectFrame(config))
     f <- frameQueue.dequeue1
     _ <- checkConnectionAck(f)
@@ -74,7 +72,7 @@ object Connection {
       ids.cancel *> protocol.send(disconnectMessage)
     }
 
-    override val subscriptions: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
+    override val messages: Stream[F, Message] = protocol.messages
 
     override def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]] = {
       for {

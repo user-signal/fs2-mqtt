@@ -55,7 +55,7 @@ object LocalSubscriber extends IOApp {
                 _ <- putStrLn(s"Topic ${Console.CYAN}${topic.mkString(", ")}${Console.RESET} unsubscribed")
                 _ <- stopSignal.discrete.compile.drain
               } yield ()
-              val reader = connection.subscriptions().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
+              val reader = connection.messages().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
               for {
                 _ <- IO.race(reader, subscriber)
               } yield ExitCode.Success
