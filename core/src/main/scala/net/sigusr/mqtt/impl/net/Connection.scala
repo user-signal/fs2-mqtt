@@ -45,7 +45,7 @@ object Connection {
   ))(_.disconnect)
 
   private def fromBrockerConnector[F[_]: Concurrent: Timer: ContextShift](brockerConnector: BrockerConnector[F], config: Config): F[Connection[F]] = for {
-    pendingResults <- PendingResults[F]
+    pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
     ids <- IdGenerator[F]
     protocol <- Protocol(brockerConnector, pendingResults, config.keepAlive.toLong)
     _ <- protocol.connect(config)
