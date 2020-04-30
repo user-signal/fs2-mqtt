@@ -94,13 +94,19 @@ object Protocol {
 
     def outboundMessagesInterpreter(
       inFlightOutBound: AtomicMap[F, Int, Frame],
-    ): Frame => Stream[F, Frame] = {
-      case m @ PublishFrame(header: Header, _, messageIdentifier, _) =>
-        Stream.eval(
-          if (header.qos != AtMostOnce.value)
-            inFlightOutBound.add(messageIdentifier, m)
-          else Concurrent[F].pure[Unit](())) >> Stream.emit(m)
-      case m => Stream.emit(m)
+      pingTicker: Ticker[F]
+    ): Pipe[F, Frame, Frame] = {
+      def loop(s: Stream[F, Frame]): Pull[F, Frame, Unit] = s.pull.uncons1.flatMap {
+        case Some((hd, tl)) => (hd match {
+          case PublishFrame(header: Header, _, messageIdentifier, _) =>
+            Pull.eval(if (header.qos != AtMostOnce.value)
+                inFlightOutBound.add(messageIdentifier, hd)
+              else Concurrent[F].pure[Unit](()))
+          case _ => Pull.eval(Concurrent[F].pure[Unit](()))
+        }) >> Pull.output1(hd) >> Pull.eval(pingTicker.reset) >> loop(tl)
+        case None => Pull.done
+      }
+      loop(_).stream
     }
 
     for {
@@ -112,8 +118,7 @@ object Protocol {
       inFlightOutBound <- AtomicMap[F, Int, Frame]
 
       outbound <- frameQueue.dequeue
-        .flatMap(Stream.eval(pingTicker.reset) >> Stream.emit(_))
-        .flatMap(outboundMessagesInterpreter(inFlightOutBound))
+        .through(outboundMessagesInterpreter(inFlightOutBound, pingTicker))
         .through(brockerConnector.outFrameStream)
         .compile.drain.start
 
