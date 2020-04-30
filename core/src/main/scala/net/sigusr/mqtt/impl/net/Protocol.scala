@@ -4,8 +4,8 @@ import cats.effect.concurrent.Deferred
 import cats.effect.implicits._
 import cats.effect.{Concurrent, Timer}
 import cats.implicits._
-import fs2.Stream
 import fs2.concurrent.{Queue, SignallingRef}
+import fs2.{INothing, Pipe, Stream}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.api.{ConnectionFailureReason, Message, ProtocolError}
 import net.sigusr.mqtt.impl.frames._
@@ -41,66 +41,50 @@ object Protocol {
       frameQueue: Queue[F, Frame],
       inFlightOutBound: AtomicMap[F, Int, Frame],
       connected: Deferred[F, Int]
-    ): Frame => F[Unit] = {
+    ): Frame => Stream[F, INothing] = {
 
       case PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) =>
         header.qos match {
           case AtMostOnce.value =>
-            messageQueue.enqueue1(Message(topic, payload.toArray.toVector))
+            Stream.eval_(messageQueue.enqueue1(Message(topic, payload.toArray.toVector)))
           case AtLeastOnce.value =>
-            messageQueue.enqueue1(Message(topic, payload.toArray.toVector)) >>
-              frameQueue.enqueue1(PubackFrame(Header(), messageIdentifier))
-          case ExactlyOnce.value => Concurrent[F].pure() // Todo
+            Stream.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) *>
+              Stream.eval_(frameQueue.enqueue1(PubackFrame(Header(), messageIdentifier)))
+          case ExactlyOnce.value => Stream.empty // Todo
         }
 
       case PubackFrame(_: Header, messageIdentifier) =>
-        inFlightOutBound.remove(messageIdentifier) >>
-          pendingResults.remove(messageIdentifier) >>=
-            (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))
+        Stream.eval(inFlightOutBound.remove(messageIdentifier)) *>
+          Stream.eval_(pendingResults.remove(messageIdentifier) >>=
+            (_.fold(Concurrent[F].pure(()))(_.complete(Empty))))
 
-/*
-      case PubrecFrame(header, messageIdentifier) =>
-        val pubrelFrame = PubrelFrame(header.copy(qos = 1), messageIdentifier)
-        Sequence(Seq(
-          RemoveSentInFlightFrame(messageIdentifier),
-          StoreSentInFlightFrame(messageIdentifier.identifier, PubrelFrame.dupLens.set(pubrelFrame)(true)),
-          SendToNetwork(pubrelFrame)))
-      case PubrelFrame(header, messageIdentifier) =>
-        Sequence(Seq(
-          RemoveRecvInFlightFrameId(messageIdentifier),
-          SendToNetwork(PubcompFrame(header.copy(qos = 0), messageIdentifier))))
-      case PubcompFrame(_, messageId) =>
-        Sequence(Seq(
-          RemoveSentInFlightFrame(messageId),
-          SendToClient(Published(messageId))))
-
-*/
       case PingRespFrame(_: Header) =>
-        Concurrent[F].delay(println(s" ${Console.CYAN}Todo: Handle ping responses${Console.RESET}"))
+        Stream.eval_(Concurrent[F].delay(println(s" ${Console.CYAN}Todo: Handle ping responses${Console.RESET}")))
 
       case UnsubackFrame(_: Header, messageIdentifier) =>
-        pendingResults.remove(messageIdentifier) >>=
-          (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))
+        Stream.eval_(pendingResults.remove(messageIdentifier) >>=
+          (_.fold(Concurrent[F].pure(()))(_.complete(Empty))))
 
       case SubackFrame(_: Header, messageIdentifier, topics) =>
-        pendingResults.remove(messageIdentifier) >>=
-          (_.fold(Concurrent[F].pure(()))(_.complete(QoS(topics))))
+        Stream.eval_(pendingResults.remove(messageIdentifier) >>=
+          (_.fold(Concurrent[F].pure(()))(_.complete(QoS(topics)))))
 
       case ConnackFrame(_: Header, returnCode) =>
-        connected.complete(returnCode)
+        Stream.eval_(connected.complete(returnCode))
 
       case _ =>
-        ProtocolError.raiseError[F, Unit]
+        Stream.raiseError[F](ProtocolError)
     }
 
     def outboundMessagesInterpreter(
       inFlightOutBound: AtomicMap[F, Int, Frame],
-    ): Frame => F[Frame] = {
+    ): Frame => Stream[F, Frame] = {
       case m @ PublishFrame(header: Header, _, messageIdentifier, _) =>
-        if (header.qos != AtMostOnce.value)
-            inFlightOutBound.add(messageIdentifier, m) >> Concurrent[F].pure(m)
-        else Concurrent[F].pure(m)
-      case m => Concurrent[F].pure(m)
+        Stream.eval(
+          if (header.qos != AtMostOnce.value)
+            inFlightOutBound.add(messageIdentifier, m)
+          else Concurrent[F].pure[Unit]()) >> Stream.emit(m)
+      case m => Stream.emit(m)
     }
 
     for {
@@ -112,12 +96,13 @@ object Protocol {
       inFlightOutBound <- AtomicMap[F, Int, Frame]
 
       outbound <- frameQueue.dequeue
-        .evalMap(pingTicker.reset *> outboundMessagesInterpreter(inFlightOutBound)(_))
+        .flatMap(Stream.eval(pingTicker.reset) *> Stream.emit(_))
+        .flatMap(outboundMessagesInterpreter(inFlightOutBound))
         .through(brockerConnector.outFrameStream)
         .compile.drain.start
 
       inbound <- brockerConnector.frameStream
-        .evalMap(inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, connected))
+        .flatMap(inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, connected))
         .onComplete(Stream.eval(stopSignal.set(true)))
         .compile.drain.start
 
