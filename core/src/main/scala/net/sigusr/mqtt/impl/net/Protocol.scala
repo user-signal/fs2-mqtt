@@ -41,20 +41,20 @@ object Protocol {
       frameQueue: Queue[F, Frame],
       inFlightOutBound: AtomicMap[F, Int, Frame],
       connected: Deferred[F, Int]
-    ): Frame => Stream[F, INothing] = {
+    ): Pipe[F, Frame, INothing] = _.flatMap {
 
       case PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) =>
         header.qos match {
           case AtMostOnce.value =>
             Stream.eval_(messageQueue.enqueue1(Message(topic, payload.toArray.toVector)))
           case AtLeastOnce.value =>
-            Stream.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) *>
+            Stream.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
               Stream.eval_(frameQueue.enqueue1(PubackFrame(Header(), messageIdentifier)))
           case ExactlyOnce.value => Stream.empty // Todo
         }
 
       case PubackFrame(_: Header, messageIdentifier) =>
-        Stream.eval(inFlightOutBound.remove(messageIdentifier)) *>
+        Stream.eval(inFlightOutBound.remove(messageIdentifier)) >>
           Stream.eval_(pendingResults.remove(messageIdentifier) >>=
             (_.fold(Concurrent[F].pure(()))(_.complete(Empty))))
 
@@ -83,7 +83,7 @@ object Protocol {
         Stream.eval(
           if (header.qos != AtMostOnce.value)
             inFlightOutBound.add(messageIdentifier, m)
-          else Concurrent[F].pure[Unit]()) >> Stream.emit(m)
+          else Concurrent[F].pure[Unit](())) >> Stream.emit(m)
       case m => Stream.emit(m)
     }
 
@@ -96,13 +96,13 @@ object Protocol {
       inFlightOutBound <- AtomicMap[F, Int, Frame]
 
       outbound <- frameQueue.dequeue
-        .flatMap(Stream.eval(pingTicker.reset) *> Stream.emit(_))
+        .flatMap(Stream.eval(pingTicker.reset) >> Stream.emit(_))
         .flatMap(outboundMessagesInterpreter(inFlightOutBound))
         .through(brockerConnector.outFrameStream)
         .compile.drain.start
 
       inbound <- brockerConnector.frameStream
-        .flatMap(inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, connected))
+        .through(inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, connected))
         .onComplete(Stream.eval(stopSignal.set(true)))
         .compile.drain.start
 
