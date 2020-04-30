@@ -5,7 +5,7 @@ import cats.effect.implicits._
 import cats.effect.{Concurrent, Timer}
 import cats.implicits._
 import fs2.concurrent.{Queue, SignallingRef}
-import fs2.{INothing, Pipe, Stream}
+import fs2.{INothing, Pipe, Pull, Stream}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.api.{ConnectionFailureReason, Message, ProtocolError}
 import net.sigusr.mqtt.impl.frames._
@@ -37,43 +37,59 @@ object Protocol {
   ): F[Protocol[F]] = {
 
     def inboundMessagesInterpreter(
-      messageQueue: Queue[F, Message],
-      frameQueue: Queue[F, Frame],
-      inFlightOutBound: AtomicMap[F, Int, Frame],
-      connected: Deferred[F, Int]
-    ): Pipe[F, Frame, INothing] = _.flatMap {
+        messageQueue: Queue[F, Message],
+        frameQueue: Queue[F, Frame],
+        inFlightOutBound: AtomicMap[F, Int, Frame],
+        connected: Deferred[F, Int]
+      ): Pipe[F, Frame, Unit] = {
 
-      case PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) =>
-        header.qos match {
-          case AtMostOnce.value =>
-            Stream.eval_(messageQueue.enqueue1(Message(topic, payload.toArray.toVector)))
-          case AtLeastOnce.value =>
-            Stream.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
-              Stream.eval_(frameQueue.enqueue1(PubackFrame(Header(), messageIdentifier)))
-          case ExactlyOnce.value => Stream.empty // Todo
+      def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] = s.pull.uncons1.flatMap {
+        case Some((hd, tl)) => hd match {
+
+          case PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) =>
+            header.qos match {
+              case AtMostOnce.value =>
+                Pull.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
+                  loop(tl, inFlightInBound)
+              case AtLeastOnce.value =>
+                Pull.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
+                  Pull.eval(frameQueue.enqueue1(PubackFrame(Header(), messageIdentifier))) >>
+                  loop(tl, inFlightInBound)
+              case ExactlyOnce.value =>
+                loop(tl, inFlightInBound) // Todo
+            }
+
+          case PubackFrame(_: Header, messageIdentifier) =>
+            Pull.eval(inFlightOutBound.remove(messageIdentifier)) >>
+              Pull.eval(pendingResults.remove(messageIdentifier) >>=
+                (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))) >>
+              loop(tl, inFlightInBound)
+
+          case PingRespFrame(_: Header) =>
+            Pull.eval(Concurrent[F].delay(println(s" ${Console.CYAN}Todo: Handle ping responses${Console.RESET}"))) >>
+              loop(tl, inFlightInBound)
+
+          case UnsubackFrame(_: Header, messageIdentifier) =>
+            Pull.eval(pendingResults.remove(messageIdentifier) >>=
+              (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))) >>
+              loop(tl, inFlightInBound)
+
+          case SubackFrame(_: Header, messageIdentifier, topics) =>
+            Pull.eval(pendingResults.remove(messageIdentifier) >>=
+              (_.fold(Concurrent[F].pure(()))(_.complete(QoS(topics))))) >>
+              loop(tl, inFlightInBound)
+
+          case ConnackFrame(_: Header, returnCode) =>
+            Pull.eval(connected.complete(returnCode)) >>
+              loop(tl, inFlightInBound)
+
+          case _ =>
+            Pull.raiseError[F](ProtocolError)
         }
 
-      case PubackFrame(_: Header, messageIdentifier) =>
-        Stream.eval(inFlightOutBound.remove(messageIdentifier)) >>
-          Stream.eval_(pendingResults.remove(messageIdentifier) >>=
-            (_.fold(Concurrent[F].pure(()))(_.complete(Empty))))
-
-      case PingRespFrame(_: Header) =>
-        Stream.eval_(Concurrent[F].delay(println(s" ${Console.CYAN}Todo: Handle ping responses${Console.RESET}")))
-
-      case UnsubackFrame(_: Header, messageIdentifier) =>
-        Stream.eval_(pendingResults.remove(messageIdentifier) >>=
-          (_.fold(Concurrent[F].pure(()))(_.complete(Empty))))
-
-      case SubackFrame(_: Header, messageIdentifier, topics) =>
-        Stream.eval_(pendingResults.remove(messageIdentifier) >>=
-          (_.fold(Concurrent[F].pure(()))(_.complete(QoS(topics)))))
-
-      case ConnackFrame(_: Header, returnCode) =>
-        Stream.eval_(connected.complete(returnCode))
-
-      case _ =>
-        Stream.raiseError[F](ProtocolError)
+        case None => Pull.done
+      }
+      in => loop(in, Set.empty[Int]).stream
     }
 
     def outboundMessagesInterpreter(
