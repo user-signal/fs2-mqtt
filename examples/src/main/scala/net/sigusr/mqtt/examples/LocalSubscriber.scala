@@ -24,8 +24,8 @@ import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
 import fs2.io.tcp.SocketGroup
-import net.sigusr.mqtt.api.Message
-import net.sigusr.mqtt.api.QualityOfService.AtLeastOnce
+import net.sigusr.mqtt.api.{Message, QualityOfService}
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.impl.net.Errors.ConnectionFailure
 import net.sigusr.mqtt.impl.net.{BrockerConnector, Config, Connection}
 
@@ -34,9 +34,16 @@ import scala.concurrent.duration._
 object LocalSubscriber extends IOApp {
 
   val stopTopic: String = s"$localSubscriber/stop"
+  val subscribedTopics: Vector[(String, QualityOfService)] = Vector(
+    (stopTopic, ExactlyOnce),
+    ("AtMostOnce", AtMostOnce),
+    ("AtLeastOnce", AtLeastOnce),
+    ("ExactlyOnce", ExactlyOnce)
+  )
+
+  val unsubscribedTopics: Vector[String] = Vector("AtMostOnce", "AtLeastOnce", "ExactlyOnce")
 
   override def run(args: List[String]): IO[ExitCode] = {
-    val topics = args.toVector
     Blocker[IO].use { blocker =>
       SocketGroup[IO](blocker).use { socketGroup =>
         socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
@@ -45,13 +52,13 @@ object LocalSubscriber extends IOApp {
           Connection(bc, config).use { connection =>
             SignallingRef[IO, Boolean](false).flatMap { stopSignal =>
               val subscriber = for {
-                s <- connection.subscribe((stopTopic +: topics) zip Vector.fill(topics.length + 1) { AtLeastOnce })
+                s <- connection.subscribe(subscribedTopics)
                 _ <- s.traverse { p =>
                   putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
                 }
                 _ <- IO.sleep(23.seconds)
-                topic = topics.take(1)
-                _ <- connection.unsubscribe(topic)
+                topic = subscribedTopics.take(1)
+                _ <- connection.unsubscribe(unsubscribedTopics)
                 _ <- putStrLn(s"Topic ${Console.CYAN}${topic.mkString(", ")}${Console.RESET} unsubscribed")
                 _ <- stopSignal.discrete.compile.drain
               } yield ()

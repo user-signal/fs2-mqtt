@@ -56,13 +56,34 @@ object Protocol {
                   Pull.eval(frameQueue.enqueue1(PubackFrame(Header(), messageIdentifier))) >>
                   loop(tl, inFlightInBound)
               case ExactlyOnce.value =>
-                loop(tl, inFlightInBound) // Todo
+                if (inFlightInBound.contains(messageIdentifier))
+                  Pull.eval(frameQueue.enqueue1(PubrecFrame(Header(), messageIdentifier)))
+                else
+                  Pull.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
+                    Pull.eval(frameQueue.enqueue1(PubrecFrame(Header(), messageIdentifier))) >>
+                    loop(tl, inFlightInBound + messageIdentifier)
             }
 
           case PubackFrame(_: Header, messageIdentifier) =>
             Pull.eval(inFlightOutBound.remove(messageIdentifier)) >>
               Pull.eval(pendingResults.remove(messageIdentifier) >>=
                 (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))) >>
+              loop(tl, inFlightInBound)
+
+          case PubrelFrame(header, messageIdentifier) =>
+            Pull.eval(frameQueue.enqueue1(PubcompFrame(header.copy(qos = 0), messageIdentifier))) >>
+              loop(tl, inFlightInBound - messageIdentifier)
+
+          case PubcompFrame(_, messageIdentifier) =>
+            Pull.eval(inFlightOutBound.remove(messageIdentifier)) >>
+              Pull.eval(pendingResults.remove(messageIdentifier) >>=
+                (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))) >>
+              loop(tl, inFlightInBound)
+
+          case PubrecFrame(header, messageIdentifier) =>
+            val pubrelFrame = PubrelFrame(header.copy(qos = 1), messageIdentifier)
+            Pull.eval(inFlightOutBound.update(messageIdentifier, pubrelFrame)) >>
+              Pull.eval(frameQueue.enqueue1(pubrelFrame)) >>
               loop(tl, inFlightInBound)
 
           case PingRespFrame(_: Header) =>
@@ -100,7 +121,7 @@ object Protocol {
         case Some((hd, tl)) => (hd match {
           case PublishFrame(header: Header, _, messageIdentifier, _) =>
             Pull.eval(if (header.qos != AtMostOnce.value)
-                inFlightOutBound.add(messageIdentifier, hd)
+                inFlightOutBound.update(messageIdentifier, hd)
               else Concurrent[F].pure[Unit](()))
           case _ => Pull.eval(Concurrent[F].pure[Unit](()))
         }) >> Pull.output1(hd) >> Pull.eval(pingTicker.reset) >> loop(tl)

@@ -62,7 +62,7 @@ object Connection {
       for {
         messageId <- ids.next
         d <- Deferred[F, Result]
-        _ <- pendingResults.add(messageId, d)
+        _ <- pendingResults.update(messageId, d)
         _ <- protocol.send(subscribeFrame(messageId, topics))
         v <- d.get
         t = v match { case QoS(topics) => topics }
@@ -73,7 +73,7 @@ object Connection {
       for {
         messageId <- ids.next
         d <- Deferred[F, Result]
-        _ <- pendingResults.add(messageId, d)
+        _ <- pendingResults.update(messageId, d)
         _ <- protocol.send(unsubscribeFrame(messageId, topics))
         _ <- d.get
       } yield ()
@@ -86,7 +86,7 @@ object Connection {
         case QualityOfService.AtLeastOnce | QualityOfService.ExactlyOnce => for {
           messageId <- ids.next
           d <- Deferred[F, Result]
-          _ <- pendingResults.add(messageId, d)
+          _ <- pendingResults.update(messageId, d)
           _ <- protocol.send(publishFrame(topic, Some(messageId), payload, qos, retain))
           _ <- d.get
         } yield ()

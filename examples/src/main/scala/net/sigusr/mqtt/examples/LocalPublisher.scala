@@ -23,9 +23,9 @@ import cats.effect.{Blocker, ExitCode, IO, IOApp}
 import cats.implicits._
 import fs2.Stream
 import fs2.io.tcp.SocketGroup
-import net.sigusr.mqtt.api.QualityOfService.AtLeastOnce
-import net.sigusr.mqtt.impl.net.{BrockerConnector, Config, Connection}
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.impl.net.Errors._
+import net.sigusr.mqtt.impl.net.{BrockerConnector, Config, Connection}
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -43,10 +43,13 @@ object LocalPublisher extends IOApp {
   private def randomMessage(messages: Vector[String]): Stream[IO, String] =
     random >>= (r => Stream.emit(messages(r % messages.length)))
 
+  private val topics =
+    Stream(("AtMostOnce", AtMostOnce),("AtLeastOnce", AtLeastOnce),("ExactlyOnce", ExactlyOnce)).repeat
+
+
   override def run(args: List[String]): IO[ExitCode] = {
-    if (args.length > 2) {
-      val topic = args.head
-      val messages = args.drop(1).toVector
+    if (args.nonEmpty) {
+      val messages = args.toVector
       Blocker[IO].use { blocker =>
         SocketGroup[IO](blocker).use { socketGroup =>
           socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
@@ -54,9 +57,13 @@ object LocalPublisher extends IOApp {
             val config = Config(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
             Connection(bc, config).use { connection =>
               (for {
-                m <- ticks().zipRight(randomMessage(messages))
-                _ <- Stream.eval(putStrLn(s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} message ${Console.BOLD}$m${Console.RESET}"))
-                _ <- Stream.eval(connection.publish(topic, payload(m), qos = AtLeastOnce))
+                m <- ticks().zipRight(randomMessage(messages).zip(topics))
+                message = m._1
+                topic = m._2._1
+                qos = m._2._2
+                _ <- Stream.eval(putStrLn(
+                  s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS ${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"))
+                _ <- Stream.eval(connection.publish(topic, payload(message), qos))
               } yield ()).compile.drain
             }
           }
@@ -67,7 +74,7 @@ object LocalPublisher extends IOApp {
         putStrLn(s"Connection failure: ${Console.RED}${reason.show}${Console.RESET}").as(ExitCode.Error)
     }
     else {
-      putStrLn(s"${Console.RED}At least a « topic » and one or more « messages » should be provided.${Console.RESET}")
+      putStrLn(s"${Console.RED}At least one or more « messages » should be provided.${Console.RESET}")
         .as(ExitCode.Error)
     }
   }

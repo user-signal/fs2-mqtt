@@ -6,7 +6,7 @@ import cats.implicits._
 
 trait AtomicMap[F[_], K, V] {
 
-  def add(key: K, result: V): F[Unit]
+  def update(key: K, result: V): F[Unit]
 
   def remove(key: K): F[Option[V]]
 
@@ -20,7 +20,7 @@ object AtomicMap {
 
   } yield new AtomicMap[F, K, V]() {
 
-    override def add(key: K, result: V): F[Unit] = mm.update(m => m.updated(key, result))
+    override def update(key: K, result: V): F[Unit] = mm.update(m => m.updated(key, result))
 
     override def remove(key: K): F[Option[V]] = mm.modify(m => (m.removed(key), m.get(key)))
   }
