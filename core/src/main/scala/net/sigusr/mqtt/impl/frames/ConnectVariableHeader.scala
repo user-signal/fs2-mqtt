@@ -16,6 +16,7 @@
 
 package net.sigusr.mqtt.impl.frames
 
+import scodec.Codec
 import scodec.bits.{BitVector, _}
 import scodec.codecs._
 
@@ -36,7 +37,7 @@ object ConnectVariableHeader {
    */
   val connectVariableHeaderFixedBytes: BitVector = BitVector(hex"00064D514973647003")
 
-  implicit val connectVariableHeaderCodec = (
+  implicit val connectVariableHeaderCodec: Codec[ConnectVariableHeader] = (
     constant(connectVariableHeaderFixedBytes) :~>:
     bool ::
     bool ::

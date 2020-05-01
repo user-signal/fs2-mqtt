@@ -1,6 +1,9 @@
-# A Scala MQTT client library [![Build Status](https://travis-ci.org/fcabestre/Scala-MQTT-client.svg?branch=master)](https://travis-ci.org/fcabestre/Scala-MQTT-client) [![Coverage Status](https://coveralls.io/repos/fcabestre/Scala-MQTT-client/badge.png?branch=master)](https://coveralls.io/r/fcabestre/Scala-MQTT-client?branch=master)
+# A pure functional Scala MQTT client library [![Build Status](https://travis-ci.org/fcabestre/Scala-MQTT-client.svg?branch=master)](https://travis-ci.org/fcabestre/Scala-MQTT-client) [![Coverage Status](https://coveralls.io/repos/fcabestre/Scala-MQTT-client/badge.png?branch=master)](https://coveralls.io/r/fcabestre/Scala-MQTT-client?branch=master)
 
-## In the beginning...
+## Back then...
+
+Late 2014 I initiated a [Scala MQTT client library](https://github.com/fcabestre/Scala-MQTT-client) project. My purpose 
+was to learn me some [Akka](http://akka.io) while try to provide something potentially useful. I quickly the e   
 
 I wanted to build a presentation of [Akka](http://akka.io). But not just a deck of slides, I wanted something to
 live-code with, something backed by real hardware. Maybe a Raspberry Pi. I imagined the small devices sending
