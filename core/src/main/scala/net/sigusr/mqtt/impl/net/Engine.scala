@@ -18,19 +18,19 @@ package net.sigusr.mqtt.impl.net
 
 import cats.effect.concurrent.Deferred
 import cats.effect.implicits._
-import cats.effect.{Concurrent, Timer}
+import cats.effect.{ Concurrent, Timer }
 import cats.implicits._
-import fs2.concurrent.{Queue, SignallingRef}
-import fs2.{INothing, Pipe, Pull, Stream}
-import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
-import net.sigusr.mqtt.api.{ConnectionFailureReason, Message, ProtocolError}
+import fs2.concurrent.{ Queue, SignallingRef }
+import fs2.{ INothing, Pipe, Pull, Stream }
+import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
+import net.sigusr.mqtt.api.ConnectionFailureReason
+import net.sigusr.mqtt.api.Errors.{ ConnectionFailure, ProtocolError }
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.net.Builders.connectFrame
-import net.sigusr.mqtt.impl.net.Errors.ConnectionFailure
-import net.sigusr.mqtt.impl.net.Result.{Empty, QoS}
+import net.sigusr.mqtt.impl.net.Result.{ Empty, QoS }
 import scodec.bits.ByteVector
 
-trait Protocol[F[_]] {
+trait Engine[F[_]] {
 
   def connect(config: Config): F[Unit]
 
@@ -42,22 +42,20 @@ trait Protocol[F[_]] {
 
 }
 
-object Protocol {
+object Engine {
 
   private val QUEUE_SIZE = 128
 
   def apply[F[_]: Concurrent: Timer](
-    brockerConnector: BrockerConnector[F],
+    brockerConnector: BrokerConnector[F],
     pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
-    keepAlive: Long
-  ): F[Protocol[F]] = {
+    keepAlive: Long): F[Engine[F]] = {
 
     def inboundMessagesInterpreter(
-        messageQueue: Queue[F, Message],
-        frameQueue: Queue[F, Frame],
-        inFlightOutBound: AtomicMap[F, Int, Frame],
-        connected: Deferred[F, Int]
-      ): Pipe[F, Frame, Unit] = {
+      messageQueue: Queue[F, Message],
+      frameQueue: Queue[F, Frame],
+      inFlightOutBound: AtomicMap[F, Int, Frame],
+      connected: Deferred[F, Int]): Pipe[F, Frame, Unit] = {
 
       def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] = s.pull.uncons1.flatMap {
         case Some((hd, tl)) => hd match {
@@ -131,14 +129,13 @@ object Protocol {
 
     def outboundMessagesInterpreter(
       inFlightOutBound: AtomicMap[F, Int, Frame],
-      pingTicker: Ticker[F]
-    ): Pipe[F, Frame, Frame] = {
+      pingTicker: Ticker[F]): Pipe[F, Frame, Frame] = {
       def loop(s: Stream[F, Frame]): Pull[F, Frame, Unit] = s.pull.uncons1.flatMap {
         case Some((hd, tl)) => (hd match {
           case PublishFrame(header: Header, _, messageIdentifier, _) =>
             Pull.eval(if (header.qos != AtMostOnce.value)
-                inFlightOutBound.update(messageIdentifier, hd)
-              else Concurrent[F].pure[Unit](()))
+              inFlightOutBound.update(messageIdentifier, hd)
+            else Concurrent[F].pure[Unit](()))
           case _ => Pull.eval(Concurrent[F].pure[Unit](()))
         }) >> Pull.output1(hd) >> Pull.eval(pingTicker.reset) >> loop(tl)
         case None => Pull.done
@@ -159,12 +156,12 @@ object Protocol {
         .through(brockerConnector.outFrameStream)
         .compile.drain.start
 
-      inbound <- brockerConnector.frameStream
+      inbound <- brockerConnector.inFrameStream
         .through(inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, connected))
         .onComplete(Stream.eval(stopSignal.set(true)))
         .compile.drain.start
 
-    } yield new Protocol[F] {
+    } yield new Engine[F] {
 
       override def cancel: F[Unit] = pingTicker.cancel *> outbound.cancel *> inbound.cancel
 

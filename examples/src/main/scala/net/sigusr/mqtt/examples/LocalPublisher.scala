@@ -19,13 +19,13 @@ package net.sigusr.mqtt.examples
 import java.net.InetSocketAddress
 
 import cats.effect.Console.io._
-import cats.effect.{Blocker, ExitCode, IO, IOApp}
+import cats.effect.{ Blocker, ExitCode, IO, IOApp }
 import cats.implicits._
 import fs2.Stream
 import fs2.io.tcp.SocketGroup
-import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
-import net.sigusr.mqtt.impl.net.Errors._
-import net.sigusr.mqtt.impl.net.{BrockerConnector, Config, Connection}
+import net.sigusr.mqtt.api.Errors.ConnectionFailure
+import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
+import net.sigusr.mqtt.impl.net.{ BrokerConnector, Config, Connection }
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -44,8 +44,7 @@ object LocalPublisher extends IOApp {
     random >>= (r => Stream.emit(messages(r % messages.length)))
 
   private val topics =
-    Stream(("AtMostOnce", AtMostOnce),("AtLeastOnce", AtLeastOnce),("ExactlyOnce", ExactlyOnce)).repeat
-
+    Stream(("AtMostOnce", AtMostOnce), ("AtLeastOnce", AtLeastOnce), ("ExactlyOnce", ExactlyOnce)).repeat
 
   override def run(args: List[String]): IO[ExitCode] = {
     if (args.nonEmpty) {
@@ -53,7 +52,7 @@ object LocalPublisher extends IOApp {
       Blocker[IO].use { blocker =>
         SocketGroup[IO](blocker).use { socketGroup =>
           socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
-            val bc = BrockerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
+            val bc = BrokerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
             val config = Config(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
             Connection(bc, config).use { connection =>
               (for {

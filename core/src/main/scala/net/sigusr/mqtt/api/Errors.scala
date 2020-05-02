@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Frédéric Cabestre
+ * Copyright 2020 Frédéric Cabestre
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,18 @@
  */
 
 package net.sigusr.mqtt.api
+
 import cats.Show
 import enumeratum.values._
+
+import scala.util.control.NoStackTrace
+
+trait Errors extends NoStackTrace
+
+object Errors {
+  case object ProtocolError extends Errors
+  case class ConnectionFailure(reason: ConnectionFailureReason) extends Errors
+}
 
 sealed abstract class ConnectionFailureReason(val value: Int) extends IntEnumEntry
 
@@ -38,5 +48,4 @@ object ConnectionFailureReason extends IntEnum[ConnectionFailureReason] {
     case BadUserNameOrPassword => "Bad user name or password"
     case NotAuthorized => "Not authorized"
   }
-
 }

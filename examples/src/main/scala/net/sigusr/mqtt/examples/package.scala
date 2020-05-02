@@ -20,5 +20,5 @@ package object examples {
   val localSubscriber: String = "Local-Subscriber"
   val localPublisher: String = "Local-Publisher"
 
-  val payload = (_:String).getBytes("UTF-8").toVector
+  val payload: String => Vector[Byte] = (_: String).getBytes("UTF-8").toVector
 }

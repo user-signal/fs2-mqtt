@@ -21,7 +21,6 @@ import net.sigusr.mqtt.impl.frames.Header._
 import scodec.Codec
 import scodec.bits.ByteVector
 import scodec.codecs._
-import shapeless._
 
 sealed trait Frame {
   def header: Header
@@ -34,8 +33,7 @@ case class ConnectFrame(
   topic: Option[String],
   message: Option[String],
   user: Option[String],
-  password: Option[String]
-) extends Frame
+  password: Option[String]) extends Frame
 
 case class ConnackFrame(header: Header, returnCode: Int) extends Frame
 case class PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) extends Frame
@@ -66,8 +64,7 @@ object ConnectFrame {
         conditional(hdr.willFlag, stringCodec) ::
         conditional(hdr.userNameFlag, stringCodec) ::
         conditional(hdr.passwordFlag, stringCodec)
-    }
-  )).as[ConnectFrame]
+    })).as[ConnectFrame]
 }
 
 object ConnackFrame {
@@ -76,7 +73,6 @@ object ConnackFrame {
 }
 
 object PublishFrame {
-  val dupLens = lens[PublishFrame].header.dup
   implicit val discriminator: Discriminator[Frame, PublishFrame, Int] = Discriminator(3)
   implicit val codec: Codec[PublishFrame] = (headerCodec >>:~ {
     (hdr: Header) => variableSizeBytes(remainingLengthCodec, stringCodec :: (if (hdr.qos != 0) messageIdCodec else provide(0)) :: bytes)
@@ -94,7 +90,6 @@ object PubrecFrame {
 }
 
 object PubrelFrame {
-  val dupLens = lens[PubrelFrame].header.dup
   implicit val discriminator: Discriminator[Frame, PubrelFrame, Int] = Discriminator(6)
   implicit val codec: Codec[PubrelFrame] = (headerCodec :: variableSizeBytes(remainingLengthCodec, messageIdCodec)).as[PubrelFrame]
 }

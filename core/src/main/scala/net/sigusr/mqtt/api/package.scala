@@ -20,23 +20,4 @@ package object api {
 
   val DEFAULT_KEEP_ALIVE: Int = 30
 
-  implicit def asMessageIdentifier(int: Int): MessageId = MessageId(int)
-
-  implicit class MessageIdentifierLiteral(val sc: StringContext) extends AnyVal {
-    def mi(args: Any*): MessageId = {
-      val strings = sc.parts.iterator
-      val expressions = args.iterator
-      val buf = new StringBuffer(strings.next())
-      while (strings.hasNext) {
-        buf append expressions.next
-        buf append strings.next
-      }
-      MessageId(buf.toString.toInt)
-    }
-  }
-
-  @inline final def assert(requirement: Boolean, message: => Any): Unit = {
-    if (!requirement)
-      throw new IllegalArgumentException(message.toString)
-  }
 }

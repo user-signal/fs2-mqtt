@@ -18,7 +18,7 @@ package net.sigusr.mqtt.impl.frames
 
 import scodec.Attempt._
 import scodec._
-import scodec.bits.{BitVector, _}
+import scodec.bits.{ BitVector, _ }
 import scodec.codecs._
 
 final class RemainingLengthCodec extends Codec[Int] {
@@ -26,7 +26,7 @@ final class RemainingLengthCodec extends Codec[Int] {
   val MinValue = 0
   val MaxValue = 268435455
 
-  def sizeBound = SizeBound.bounded(8, 32)
+  def sizeBound: SizeBound = SizeBound.bounded(8, 32)
 
   def decode(bits: BitVector): Attempt[DecodeResult[Int]] = {
     @annotation.tailrec

@@ -22,11 +22,11 @@ lazy val commonSettings = Seq(
     "-language:existentials",
     "-language:higherKinds",
     "-language:implicitConversions",
-//    "-Xfatal-warnings",
-    "-Xlint:_")
-//    "-Ywarn-dead-code",
-//    "-Ywarn-numeric-widen",
-//    "-Ywarn-value-discard")
+    "-Xfatal-warnings",
+    "-Xlint:_",
+    "-Ywarn-dead-code",
+    "-Ywarn-numeric-widen",
+    "-Ywarn-value-discard")
 )
 
 lazy val root = (project in file("."))
@@ -37,24 +37,12 @@ lazy val core = project
   .in(file("core"))
   .configs(IntegrationTest)
   .settings(commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
-    name := """Scala-MQTT-client""",
-    version := "0.7.0-SNAPSHOT",
-
-    resolvers += "Scalaz Bintray Repo" at "https://dl.bintray.com/scalaz/releases",
+    name := """fs2-mqtt""",
+    version := "0.1.0-SNAPSHOT",
 
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-actor" % "2.5.27",
-      "com.typesafe.akka" %% "akka-testkit" % "2.5.27",
-      "com.typesafe.akka" %% "akka-stream" % "2.5.27",
-      "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.27",
-      "org.scalaz"        %% "scalaz-core"   % "7.2.30",
-
-      "org.typelevel"  %% "kittens"       % "2.1.0",
       "com.beachape"   %% "enumeratum"    % "1.5.15",
       "dev.profunktor" %% "console4cats"  % "0.8.1",
-      "eu.timepit"     %% "refined"       % "0.9.13",
-      "eu.timepit"     %% "refined-cats"  % "0.9.13",
-      "io.estatico"    %% "newtype"       % "0.4.3",
       "org.specs2"     %% "specs2-core"   % "4.8.3" % "test",
       "org.scodec"     %% "scodec-core"   % "1.11.4",
       "org.scodec"     %% "scodec-stream" % "2.0.0",
@@ -94,7 +82,7 @@ def pgpSettings =
 val ossSnapshots = "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
 val ossStaging = "Sonatype OSS Staging" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
 
-def projectUrl = "https://github.com/fcabestre/Scala-MQTT-client"
+def projectUrl = "https://github.com/User-Defined-Signal/fs2-mqtt"
 def developerId = "fcabestre"
 def developerName = "Frédéric Cabestre"
 def licenseName = "Apache-2.0"

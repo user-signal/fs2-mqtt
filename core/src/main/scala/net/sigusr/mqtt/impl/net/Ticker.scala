@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 
 import cats.effect.concurrent.Ref
 import cats.effect.implicits._
-import cats.effect.{Concurrent, Timer}
+import cats.effect.{ Concurrent, Timer }
 import cats.implicits._
 import fs2.Stream
 

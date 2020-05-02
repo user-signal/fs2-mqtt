@@ -17,7 +17,7 @@
 package net.sigusr.mqtt.impl.frames
 
 import scodec.Codec
-import scodec.bits.{BitVector, _}
+import scodec.bits.{ BitVector, _ }
 import scodec.codecs._
 
 case class ConnectVariableHeader(

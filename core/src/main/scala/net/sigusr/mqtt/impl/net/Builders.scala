@@ -17,7 +17,7 @@
 package net.sigusr.mqtt.impl.net
 
 import net.sigusr.mqtt.api.QualityOfService
-import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce}
+import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce }
 import net.sigusr.mqtt.impl.frames._
 import scodec.bits.ByteVector
 
@@ -47,8 +47,7 @@ object Builders {
         qos,
         willFlag = config.will.isDefined,
         config.cleanSession,
-        config.keepAlive
-      )
+        config.keepAlive)
     ConnectFrame(header, variableHeader, config.clientId, topic, message, config.user, config.password)
   }
 

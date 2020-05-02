@@ -17,14 +17,18 @@
 package net.sigusr.mqtt.impl.net
 
 import cats.effect.concurrent.Deferred
-import cats.effect.{Concurrent, ContextShift, Resource, Timer}
+import cats.effect.{ Concurrent, ContextShift, Resource, Timer }
 import cats.implicits._
 import fs2.Stream
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
-import net.sigusr.mqtt.api.{DEFAULT_KEEP_ALIVE, Message, QualityOfService, Will}
+import net.sigusr.mqtt.api.{ DEFAULT_KEEP_ALIVE, QualityOfService }
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.net.Builders._
 import net.sigusr.mqtt.impl.net.Result.QoS
+import net.sigusr.mqtt.api.Errors.ProtocolError
+
+sealed case class Will(retain: Boolean, qos: QualityOfService, topic: String, message: String)
+sealed case class Message(topic: String, payload: Vector[Byte])
 
 sealed case class Config(
   clientId: String,
@@ -32,8 +36,7 @@ sealed case class Config(
   cleanSession: Boolean = true,
   will: Option[Will] = None,
   user: Option[String] = None,
-  password: Option[String] = None
-)
+  password: Option[String] = None)
 
 trait Connection[F[_]] {
 
@@ -52,37 +55,37 @@ trait Connection[F[_]] {
 object Connection {
 
   def apply[F[_]: Concurrent: Timer: ContextShift](
-    brockerConnector: BrockerConnector[F],
-    config: Config
-  ): Resource[F, Connection[F]] =
-    Resource.make(fromBrockerConnector(
-      brockerConnector,
-      config
-  ))(_.disconnect)
+    brockerConnector: BrokerConnector[F],
+    config: Config): Resource[F, Connection[F]] =
+    Resource.make(fromBrokerConnector(brockerConnector, config))(_.disconnect)
 
-  private def fromBrockerConnector[F[_]: Concurrent: Timer: ContextShift](brockerConnector: BrockerConnector[F], config: Config): F[Connection[F]] = for {
+  private def fromBrokerConnector[F[_]: Concurrent: Timer: ContextShift](
+    brockerConnector: BrokerConnector[F],
+    config: Config): F[Connection[F]] = for {
     pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
     ids <- IdGenerator[F]
-    protocol <- Protocol(brockerConnector, pendingResults, config.keepAlive.toLong)
-    _ <- protocol.connect(config)
+    engine <- Engine(brockerConnector, pendingResults, config.keepAlive.toLong)
+    _ <- engine.connect(config)
   } yield new Connection[F] {
 
     override val disconnect: F[Unit] = {
       val disconnectMessage = DisconnectFrame(Header())
-      ids.cancel *> protocol.send(disconnectMessage)
+      ids.cancel *> engine.send(disconnectMessage)
     }
 
-    override val messages: Stream[F, Message] = protocol.messages
+    override val messages: Stream[F, Message] = engine.messages
 
     override def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]] = {
       for {
         messageId <- ids.next
         d <- Deferred[F, Result]
         _ <- pendingResults.update(messageId, d)
-        _ <- protocol.send(subscribeFrame(messageId, topics))
+        _ <- engine.send(subscribeFrame(messageId, topics))
         v <- d.get
-        t = v match { case QoS(topics) => topics }
-      } yield topics.zip(t).map(p => (p._1._1, QualityOfService.withValue(p._2)))
+      } yield v match {
+        case QoS(t) => topics.zip(t).map(p => (p._1._1, QualityOfService.withValue(p._2)))
+        case _ => throw ProtocolError
+      }
     }
 
     override def unsubscribe(topics: Vector[String]): F[Unit] = {
@@ -90,7 +93,7 @@ object Connection {
         messageId <- ids.next
         d <- Deferred[F, Result]
         _ <- pendingResults.update(messageId, d)
-        _ <- protocol.send(unsubscribeFrame(messageId, topics))
+        _ <- engine.send(unsubscribeFrame(messageId, topics))
         _ <- d.get
       } yield ()
     }
@@ -98,12 +101,12 @@ object Connection {
     override def publish(topic: String, payload: Vector[Byte], qos: QualityOfService, retain: Boolean): F[Unit] = {
       qos match {
         case QualityOfService.AtMostOnce =>
-          protocol.send(publishFrame(topic, None, payload, qos, retain))
+          engine.send(publishFrame(topic, None, payload, qos, retain))
         case QualityOfService.AtLeastOnce | QualityOfService.ExactlyOnce => for {
           messageId <- ids.next
           d <- Deferred[F, Result]
           _ <- pendingResults.update(messageId, d)
-          _ <- protocol.send(publishFrame(topic, Some(messageId), payload, qos, retain))
+          _ <- engine.send(publishFrame(topic, Some(messageId), payload, qos, retain))
           _ <- d.get
         } yield ()
       }

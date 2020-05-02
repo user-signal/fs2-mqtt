@@ -20,24 +20,23 @@ import cats.effect.Sync
 import cats.implicits._
 import enumeratum.values._
 import fs2.io.tcp.Socket
-import fs2.{Pipe, Stream}
+import fs2.{ Pipe, Stream }
 import net.sigusr.mqtt.impl.frames.Frame
-import net.sigusr.mqtt.impl.net.BrockerConnector.Direction.{In, Out}
+import net.sigusr.mqtt.impl.net.BrokerConnector.Direction.{ In, Out }
 import scodec.Codec
-import scodec.stream.{StreamDecoder, StreamEncoder}
+import scodec.stream.{ StreamDecoder, StreamEncoder }
 
 import scala.concurrent.duration.FiniteDuration
 
+trait BrokerConnector[F[_]] {
 
-trait BrockerConnector[F[_]] {
-
-  def frameStream: Stream[F, Frame]
+  def inFrameStream: Stream[F, Frame]
 
   def outFrameStream: Pipe[F, Frame, Unit]
 
 }
 
-object BrockerConnector {
+object BrokerConnector {
 
   sealed abstract class Direction(val value: Char, val color: String) extends CharEnumEntry
   object Direction extends CharEnum[Direction] {
@@ -54,8 +53,7 @@ object BrockerConnector {
     socket: Socket[F],
     readTimeout: FiniteDuration,
     writeTimeout: FiniteDuration,
-    traceMessages: Boolean = false
-  ): BrockerConnector[F] = new BrockerConnector[F] {
+    traceMessages: Boolean = false): BrokerConnector[F] = new BrokerConnector[F] {
 
     private def tracingPipe(d: Direction): Pipe[F, Frame, Frame] = frames => for {
       frame <- frames
@@ -68,7 +66,7 @@ object BrockerConnector {
         .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
         .through(socket.writes())
 
-    def frameStream: Stream[F, Frame] =
+    def inFrameStream: Stream[F, Frame] =
       socket.reads(NUM_BYTES)
         .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
         .through(tracingPipe(In))
