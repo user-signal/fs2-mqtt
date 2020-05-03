@@ -82,7 +82,7 @@ def pgpSettings =
 val ossSnapshots = "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
 val ossStaging = "Sonatype OSS Staging" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
 
-def projectUrl = "https://github.com/User-Defined-Signal/fs2-mqtt"
+def projectUrl = "https://github.com/user-signal/fs2-mqtt"
 def developerId = "fcabestre"
 def developerName = "Frédéric Cabestre"
 def licenseName = "Apache-2.0"
