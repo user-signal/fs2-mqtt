@@ -1,41 +1,38 @@
-# A pure functional Scala MQTT client library [![Build Status](https://travis-ci.org/fcabestre/Scala-MQTT-client.svg?branch=master)](https://travis-ci.org/fcabestre/Scala-MQTT-client) [![Coverage Status](https://coveralls.io/repos/fcabestre/Scala-MQTT-client/badge.png?branch=master)](https://coveralls.io/r/fcabestre/Scala-MQTT-client?branch=master)
+# A pure functional Scala MQTT client library [![Build Status](https://travis-ci.org/user-signal/fs2-mqtt.svg?branch=master)](https://travis-ci.org/user-signal/fs2-mqtt) [![Coverage Status](https://coveralls.io/repos/user-signal/fs2-mqtt/badge.png?branch=master)](https://coveralls.io/r/user-signal/fs2-mqtt?branch=master)
 
 ## Back then...
 
-Late 2014 I initiated a [Scala MQTT client library](https://github.com/fcabestre/Scala-MQTT-client) project. My purpose 
-was to learn me some [Akka](http://akka.io) while try to provide something potentially useful. I quickly the e   
+Late 2014, I initiated an [MQTT client library for Scala](https://github.com/fcabestre/Scala-MQTT-client) side project. 
+My purpose was to learn me some [Akka](http://akka.io) while trying to deliver something potentially useful. I quickly 
+found the excellent [Scodec](http://typelevel.org/projects/scodec) library to encode/decode *MQTT* protocol frames, making
+this part of the work considerably easier, with a concise and very readable outcome.
 
-I wanted to build a presentation of [Akka](http://akka.io). But not just a deck of slides, I wanted something to
-live-code with, something backed by real hardware. Maybe a Raspberry Pi. I imagined the small devices sending
-messages to an MQTT broker, probably [Mosquitto](http://mosquitto.org).
+More recently, while getting more and more interest in pure functional programming in *Scala*, in had the chance to see
+this amazing talk on [Skunk](https://youtu.be/NJrgj1vQeAI) from @tpolecat. It's about building, from the ground up, a 
+data access library for *Postgres* based on [FS2](https://fs2.io) and… *Scodec*.
 
-To this purpose, I looked for an MQTT library which I could use with Scala, but those I found were only Java based.
-I thought: "Could be fun to implement the MQTT protocol directly with [Akka IO](http://doc.akka.io/docs/akka/snapshot/scala/io.html).
-Its [specification](http://public.dhe.ibm.com/software/dw/webservices/ws-mqtt/mqtt-v3r1.html) is rather short
-(around 42 printed pages)".
+## Oops!… I did it again.
 
-And quickly, when I came to look at how to encode/decode MQTT protocol frames, I stumbled upon
-[Scodec](http://typelevel.org/projects/scodec). This seemed to be the encoding/decoding framework I was waiting for
-a long time. So I decided to give it a try...
+I rushed to [Skunk](https://github.com/tpolecat/skunk), which as been inspirational, and took the opportunity of these 
+lock down days to learn a lot about [cats](https://typelevel.org/cats/), [cats effects](https://github.com/typelevel/cats-effect) 
+and of course *FS2*. I even found the integration between *FS2* and *Scodec*, [Scodec-stream](https://github.com/scodec/scodec-stream), 
+to be utterly useful.
 
-## And now
+With all these tools at hand, and the book [Practical FP in Scala: A hands-on approach](https://leanpub.com/pfp-scala)
+on my desk, it has been quite (sic) easy to connect everything together and build this purely functional Scala MQTT
+client library.
+
+## Current status
 
 I have a basic and far from complete implementation of the thing. Frame encoding and decoding works pretty well, and
-it's possible to write some code to talk to [Mosquitto](http://mosquitto.org). For examples you can have a look to the [local subscriber]
-(https://github.com/fcabestre/Scala-MQTT-client/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalSubscriber.scala) or the
-[local publisher](https://github.com/fcabestre/Scala-MQTT-client/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalPublisher.scala).
-I'm starting to take it a bit more seriously. I mean, thinking of doing something that could be useful to others. But
-there is still a lot of work to be done:
+it's possible to write some code to talk to [Mosquitto](http://mosquitto.org). 
 
-  * Learning how other MQTT APIs are organised to polish this one
-  * Managing communication back pressure with [Akka IO](http://doc.akka.io/docs/akka/snapshot/scala/io.html)
-  * Suppoting both MQTT v3.1 and v3.1.1
-  * If I dare, passing [Paho](http://www.eclipse.org/paho/clients/testing/) conformance tests
-  * And many, many, many more I can't foresee...
+For examples you can have a look to the [local subscriber](https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalSubscriber.scala) or the
+[local publisher](https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalPublisher.scala).
 
 ## Releases
 
-[ci]: https://travis-ci.org/fcabestre/Scala-MQTT-client/
+[ci]: https://travis-ci.org/user-signal/fs2-mqtt/
 [sonatype]: https://oss.sonatype.org/index.html#nexus-search;quick~scala-mqtt-client
 
 Artifacts are available at [Sonatype OSS Repository Hosting service][sonatype], even the ```SNAPSHOTS``` automatically
@@ -52,19 +49,26 @@ In case you want to easily give a try to this library, without the burden of add
 to Maven Central. In this case just add,
 
 ```scala
-scalaVersion := "2.11.6"
+scalaVersion := "2.13.2"
 
 libraryDependencies ++= Seq(
-    "net.sigusr" %% "scala-mqtt-client" % "0.6.0"
+    "net.sigusr" %% "fs2-mqtt" % "0.1.0"
 )
 ```
 
-Moreover, since version `0.7.0-SNAPSHOT`, there is a cross built set up for Scala 2.11 and 2.12.
+There is a cross built set up for Scala 2.11, 2.12 and 2.13.
 
 ## Dependencies
 
-Roughly speaking this library depends on `Scala`, `Akka` (core and soon I hope streams), `Scodec` core and `Scalaz`.
+Roughly speaking this library depends on:
+ * [Scala](https://www.scala-lang.org/) of course, but not [Scala.js](https://www.scala-js.org/) even thought this should be fairly easy…
+ * [FS2](https://fs2.io) 
+ * [Scodec](http://typelevel.org/projects/scodec) and [Scodec-stream](https://github.com/scodec/scodec-stream)
+ * [Cats effects](https://github.com/typelevel/cats-effect) for some internal concurrency stuff
+ 
+I have no checked yet, but client code using this library should work seamlessly whether it uses [Monix](https://monix.io/) 
+or [ZIO](https://zio.dev/) as both support *cats effects* typeclasses.
 
 ## License
 
-This work is licenced under an [Apache Version 2.0 license](http://github.com/fcabestre/Scala-MQTT-client/blob/master/LICENSE)
+This work is licenced under an [Apache Version 2.0 license](http://github.com/user-signal/fs2-mqtt/blob/master/LICENSE)

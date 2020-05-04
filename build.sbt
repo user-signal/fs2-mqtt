@@ -7,8 +7,8 @@ lazy val IntegrationTest = config("it") extend Test
 
 lazy val commonSettings = Seq(
   organization := "net.sigusr",
-  scalaVersion := "2.13.1",
-  crossScalaVersions := Seq("2.11.8", "2.12.1", "2.13.1"),
+  scalaVersion := "2.13.2",
+  crossScalaVersions := Seq("2.11.8", "2.12.1", "2.13.2"),
   crossVersion := CrossVersion.binary,
 
   scalacOptions in Test ++= Seq("-Yrangepos"),
