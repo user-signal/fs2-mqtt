@@ -245,7 +245,7 @@ class CodecSpec extends Specification {
     "Perform round trip encoding/decoding of a valid input with a QoS greater than 0" in {
       val header = Header(dup = false, AtLeastOnce.value)
       val topic = "a/b"
-      val publishFrame = PublishFrame(header, topic, 10, ByteVector("Hello world".getBytes))
+      val publishFrame = PublishFrame(header, topic, Some(10), ByteVector("Hello world".getBytes))
 
       Codec[Frame].decode(Codec[Frame].encode(publishFrame).require) should succeedWith(DecodeResult(publishFrame, bin""))
     }
@@ -253,7 +253,7 @@ class CodecSpec extends Specification {
     "Perform round trip encoding/decoding of a valid input with a QoS equals to 0" in {
       val header = Header(dup = false, AtMostOnce.value)
       val topic = "a/b"
-      val publishFrame = PublishFrame(header, topic, 0, ByteVector("Hello world".getBytes))
+      val publishFrame = PublishFrame(header, topic, None, ByteVector("Hello world".getBytes))
 
       Codec[Frame].decode(Codec[Frame].encode(publishFrame).require) should succeedWith(DecodeResult(publishFrame, bin""))
     }
@@ -263,7 +263,7 @@ class CodecSpec extends Specification {
     "Fail if there is not enough bytes to decodde" in {
       val header = Header(dup = false, AtLeastOnce.value)
       val topic = "a/b"
-      val publishFrame = PublishFrame(header, topic, 10, ByteVector(makeRandomByteVector(256)))
+      val publishFrame = PublishFrame(header, topic, Some(10), ByteVector(makeRandomByteVector(256)))
 
       val bitVector = Codec[Frame].encode(publishFrame).require
       val head = bitVector.take(56 * 8)

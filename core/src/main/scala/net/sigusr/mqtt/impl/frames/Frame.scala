@@ -36,7 +36,7 @@ case class ConnectFrame(
   password: Option[String]) extends Frame
 
 case class ConnackFrame(header: Header, returnCode: Int) extends Frame
-case class PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) extends Frame
+case class PublishFrame(header: Header, topic: String, messageIdentifier: Option[Int], payload: ByteVector) extends Frame
 case class PubackFrame(header: Header, messageIdentifier: Int) extends Frame
 case class PubrecFrame(header: Header, messageIdentifier: Int) extends Frame
 case class PubrelFrame(header: Header, messageIdentifier: Int) extends Frame
@@ -75,7 +75,7 @@ object ConnackFrame {
 object PublishFrame {
   implicit val discriminator: Discriminator[Frame, PublishFrame, Int] = Discriminator(3)
   implicit val codec: Codec[PublishFrame] = (headerCodec >>:~ {
-    (hdr: Header) => variableSizeBytes(remainingLengthCodec, stringCodec :: (if (hdr.qos != 0) messageIdCodec else provide(0)) :: bytes)
+    (hdr: Header) => variableSizeBytes(remainingLengthCodec, stringCodec :: conditional(hdr.qos != 0, messageIdCodec) :: bytes)
   }).as[PublishFrame]
 }
 

@@ -60,22 +60,23 @@ object Engine {
       def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] = s.pull.uncons1.flatMap {
         case Some((hd, tl)) => hd match {
 
-          case PublishFrame(header: Header, topic: String, messageIdentifier: Int, payload: ByteVector) =>
-            header.qos match {
-              case AtMostOnce.value =>
+          case PublishFrame(header: Header, topic: String, messageIdentifier: Option[Int], payload: ByteVector) =>
+            (header.qos, messageIdentifier) match {
+              case (AtMostOnce.value, None) =>
                 Pull.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
                   loop(tl, inFlightInBound)
-              case AtLeastOnce.value =>
+              case (AtLeastOnce.value, Some(id)) =>
                 Pull.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
-                  Pull.eval(frameQueue.enqueue1(PubackFrame(Header(), messageIdentifier))) >>
+                  Pull.eval(frameQueue.enqueue1(PubackFrame(Header(), id))) >>
                   loop(tl, inFlightInBound)
-              case ExactlyOnce.value =>
-                if (inFlightInBound.contains(messageIdentifier))
-                  Pull.eval(frameQueue.enqueue1(PubrecFrame(Header(), messageIdentifier)))
+              case (ExactlyOnce.value, Some(id)) =>
+                if (inFlightInBound.contains(id))
+                  Pull.eval(frameQueue.enqueue1(PubrecFrame(Header(), id)))
                 else
                   Pull.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
-                    Pull.eval(frameQueue.enqueue1(PubrecFrame(Header(), messageIdentifier))) >>
-                    loop(tl, inFlightInBound + messageIdentifier)
+                    Pull.eval(frameQueue.enqueue1(PubrecFrame(Header(), id))) >>
+                    loop(tl, inFlightInBound + id)
+              case (_, _) => Pull.raiseError[F](ProtocolError)
             }
 
           case PubackFrame(_: Header, messageIdentifier) =>
@@ -133,9 +134,7 @@ object Engine {
       def loop(s: Stream[F, Frame]): Pull[F, Frame, Unit] = s.pull.uncons1.flatMap {
         case Some((hd, tl)) => (hd match {
           case PublishFrame(header: Header, _, messageIdentifier, _) =>
-            Pull.eval(if (header.qos != AtMostOnce.value)
-              inFlightOutBound.update(messageIdentifier, hd)
-            else Concurrent[F].pure[Unit](()))
+            Pull.eval(messageIdentifier.fold(Concurrent[F].pure[Unit](()))(inFlightOutBound.update(_, hd)))
           case _ => Pull.eval(Concurrent[F].pure[Unit](()))
         }) >> Pull.output1(hd) >> Pull.eval(pingTicker.reset) >> loop(tl)
         case None => Pull.done
