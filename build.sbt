@@ -8,8 +8,6 @@ lazy val IntegrationTest = config("it") extend Test
 lazy val commonSettings = Seq(
   organization := "net.sigusr",
   scalaVersion := "2.13.2",
-  crossScalaVersions := Seq("2.11.8", "2.12.1", "2.13.2"),
-  crossVersion := CrossVersion.binary,
 
   scalacOptions in Test ++= Seq("-Yrangepos"),
 
@@ -38,7 +36,7 @@ lazy val core = project
   .configs(IntegrationTest)
   .settings(commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
     name := """fs2-mqtt""",
-    version := "0.1.0-SNAPSHOT",
+    version := "0.1.0",
 
     libraryDependencies ++= Seq(
       "com.beachape"   %% "enumeratum"    % "1.6.0",
@@ -47,7 +45,10 @@ lazy val core = project
       "org.scodec"     %% "scodec-core"   % "1.11.7",
       "org.scodec"     %% "scodec-stream" % "2.0.0",
       "co.fs2"         %% "fs2-core"      % "2.3.0",
-      "co.fs2"         %% "fs2-io"        % "2.3.0"
+      "co.fs2"         %% "fs2-io"        % "2.3.0",
+      "org.typelevel"  %% "cats-core"     % "2.1.1",
+      "org.typelevel"  %% "cats-effect"   % "2.1.3"
+
     )
   ))
 
@@ -75,7 +76,7 @@ import com.jsuereth.sbtpgp.PgpKeys.{gpgCommand, pgpSecretRing, useGpg}
 def pgpSettings =
   Seq(
     useGpg := true,
-    gpgCommand := "/usr/bin/gpg2",
+    gpgCommand := "/usr/bin/gpg",
     pgpSecretRing := file("~/.gnupg/secring.gpg")
   )
 

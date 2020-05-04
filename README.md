@@ -8,8 +8,8 @@ found the excellent [Scodec](http://typelevel.org/projects/scodec) library to en
 this part of the work considerably easier, with a concise and very readable outcome.
 
 More recently, while getting more and more interest in pure functional programming in *Scala*, in had the chance to see
-this amazing talk on [Skunk](https://youtu.be/NJrgj1vQeAI) from @tpolecat. It's about building, from the ground up, a 
-data access library for *Postgres* based on [FS2](https://fs2.io) and… *Scodec*.
+this amazing talk on [Skunk](https://youtu.be/NJrgj1vQeAI) from [@tpolecat](https://twitter.com/tpolecat). It's about 
+building, from the ground up, a data access library for *Postgres* based on [FS2](https://fs2.io) and… *Scodec*.
 
 ## Oops!… I did it again.
 
@@ -24,16 +24,22 @@ client library.
 
 ## Current status
 
-I have a basic and far from complete implementation of the thing. Frame encoding and decoding works pretty well, and
-it's possible to write some code to talk to [Mosquitto](http://mosquitto.org). 
+The library implements almost all the *MQTT* `3.1.1` protocol and allows interacting with a [Mosquitto](http://mosquitto.org) 
+broker. It does not support *MQTT* `5` and, to tell the truth, this is not even envisioned! Still, there's work ahead:
+ * even if it includes the required message exchanges for QoS 1 and 2, there is no replay of in flight messages,
+ * the connection/session management needs a lot of (re)design,
+ * cross builds would be nice… even considering *Scala.js*,
+ * …
 
-For examples you can have a look to the [local subscriber](https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalSubscriber.scala) or the
-[local publisher](https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalPublisher.scala).
+[local subscriber]: https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalSubscriber.scala
+[local publisher]: https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalPublisher.scala
+
+For examples on how to use it, you can have a look to the [local subscriber][local subscriber] or the [local publisher][local publisher].
 
 ## Releases
 
 [ci]: https://travis-ci.org/user-signal/fs2-mqtt/
-[sonatype]: https://oss.sonatype.org/index.html#nexus-search;quick~scala-mqtt-client
+[sonatype]: https://oss.sonatype.org/index.html#nexus-search;quick~fs2-mqtt
 
 Artifacts are available at [Sonatype OSS Repository Hosting service][sonatype], even the ```SNAPSHOTS``` automatically
 built by [Travis CI][ci]. To include the Sonatype repositories in your SBT build you should add,
@@ -56,8 +62,6 @@ libraryDependencies ++= Seq(
 )
 ```
 
-There is a cross built set up for Scala 2.11, 2.12 and 2.13.
-
 ## Dependencies
 
 Roughly speaking this library depends on:
@@ -65,9 +69,6 @@ Roughly speaking this library depends on:
  * [FS2](https://fs2.io) 
  * [Scodec](http://typelevel.org/projects/scodec) and [Scodec-stream](https://github.com/scodec/scodec-stream)
  * [Cats effects](https://github.com/typelevel/cats-effect) for some internal concurrency stuff
- 
-I have no checked yet, but client code using this library should work seamlessly whether it uses [Monix](https://monix.io/) 
-or [ZIO](https://zio.dev/) as both support *cats effects* typeclasses.
 
 ## License
 
