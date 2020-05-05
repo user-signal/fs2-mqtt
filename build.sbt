@@ -56,6 +56,9 @@ lazy val examples = project
   .in(file("examples"))
   .dependsOn(core)
   .settings(commonSettings ++ Seq(
+    libraryDependencies ++= Seq(
+      "io.monix" %% "monix" % "3.2.1"
+    ),
     publish := ((): Unit),
     publishLocal := ((): Unit),
     publishArtifact := false

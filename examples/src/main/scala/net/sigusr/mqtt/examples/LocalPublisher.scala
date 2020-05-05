@@ -9,17 +9,17 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * WITHOUT WARRANTIES OR CONDITTaskNS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
 
 package net.sigusr.mqtt.examples
 
-import cats.effect.Console.io._
-import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.ExitCode
 import cats.implicits._
 import fs2.Stream
+import monix.eval.{Task, TaskApp}
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.impl.net.{BrokerConnector, Config, Connection}
@@ -27,26 +27,28 @@ import net.sigusr.mqtt.impl.net.{BrokerConnector, Config, Connection}
 import scala.concurrent.duration._
 import scala.util.Random
 
-object LocalPublisher extends IOApp {
+object LocalPublisher extends TaskApp {
 
-  private val random: Stream[IO, Int] = Stream.eval(IO.delay(Math.abs(Random.nextInt()))).repeat
+  private def putStrLn(s: String): Task[Unit] = Task.eval(println(s))
 
-  private def ticks(): Stream[IO, Unit] =
+  private val random: Stream[Task, Int] = Stream.eval(Task.delay(Math.abs(Random.nextInt()))).repeat
+
+  private def ticks(): Stream[Task, Unit] =
     random >>= { r =>
       val interval = r % 2000 + 1000
-      Stream.sleep(interval.milliseconds)
+      Stream.sleep[Task](interval.milliseconds)
     }
 
-  private def randomMessage(messages: Vector[String]): Stream[IO, String] =
+  private def randomMessage(messages: Vector[String]): Stream[Task, String] =
     random >>= (r => Stream.emit(messages(r % messages.length)))
 
   private val topics =
     Stream(("AtMostOnce", AtMostOnce), ("AtLeastOnce", AtLeastOnce), ("ExactlyOnce", ExactlyOnce)).repeat
 
-  override def run(args: List[String]): IO[ExitCode] = {
+  override def run(args: List[String]): Task[ExitCode] = {
     if (args.nonEmpty) {
       val messages = args.toVector
-      BrokerConnector[IO]("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true).use { bc =>
+      BrokerConnector[Task]("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true).use { bc =>
         val config = Config(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
         Connection(bc, config).use { connection =>
           (for {
