@@ -24,7 +24,11 @@ client library.
 
 ## Current status
 
-The library implements almost all the *MQTT* `3.1.1` protocol and allows interacting with a [Mosquitto](http://mosquitto.org) 
+This library is build in the *tagless final* style in order to make it, as much as possible, *IO monad* agnostic for the
+client code using it. It's internals are nevertheless mainly build around *FS2*, *cats effetcs* typeclasses and concurrency 
+primitives.  
+
+It implements almost all the *MQTT* `3.1.1` protocol and allows interacting with a [Mosquitto](http://mosquitto.org) 
 broker. It does not support *MQTT* `5` and, to tell the truth, this is not even envisioned! Still, there's work ahead:
  * even if it includes the required message exchanges for QoS 1 and 2, there is no replay of in flight messages,
  * the connection/session management needs a lot of (re)design,
@@ -34,7 +38,8 @@ broker. It does not support *MQTT* `5` and, to tell the truth, this is not even 
 [local subscriber]: https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalSubscriber.scala
 [local publisher]: https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalPublisher.scala
 
-For examples on how to use it, you can have a look to the [local subscriber][local subscriber] or the [local publisher][local publisher].
+For examples on how to use it, you can have a look at the [local subscriber][local subscriber] or the [local publisher][local publisher] 
+code. The former is build using [ZIO](https://zio.dev/) while the later is based on [Monix](https://monix.io/).
 
 ## Releases
 
@@ -58,7 +63,7 @@ to Maven Central. In this case just add,
 scalaVersion := "2.13.2"
 
 libraryDependencies ++= Seq(
-    "net.sigusr" %% "fs2-mqtt" % "0.1.0"
+    "net.sigusr" %% "fs2-mqtt" % "0.2.0"
 )
 ```
 
@@ -69,6 +74,9 @@ Roughly speaking this library depends on:
  * [FS2](https://fs2.io) 
  * [Scodec](http://typelevel.org/projects/scodec) and [Scodec-stream](https://github.com/scodec/scodec-stream)
  * [Cats effects](https://github.com/typelevel/cats-effect) for some internal concurrency stuff
+ 
+This library should work seamlessly with various compatible IO monads: [cats effects IO](https://typelevel.org/cats-effect/datatypes/io.html) 
+of course, but [Monix](https://monix.io/) and [ZIO](https://zio.dev/) as well as both support *cats effects* typeclasses.
 
 ## License
 
