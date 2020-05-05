@@ -36,7 +36,7 @@ lazy val core = project
   .configs(IntegrationTest)
   .settings(commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
     name := """fs2-mqtt""",
-    version := "0.1.0",
+    version := "0.2.0-SNAPSHOT",
 
     libraryDependencies ++= Seq(
       "com.beachape"   %% "enumeratum"    % "1.6.0",
@@ -57,7 +57,8 @@ lazy val examples = project
   .dependsOn(core)
   .settings(commonSettings ++ Seq(
     libraryDependencies ++= Seq(
-      "io.monix" %% "monix" % "3.2.1"
+      "io.monix" %% "monix" % "3.2.1",
+      "dev.zio" %% "zio-interop-cats" % "2.0.0.0-RC13"
     ),
     publish := ((): Unit),
     publishLocal := ((): Unit),

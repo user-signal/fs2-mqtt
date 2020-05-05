@@ -16,8 +16,8 @@
 
 package net.sigusr.mqtt.examples
 
-import cats.effect.Console.io._
-import cats.effect.{ExitCode, IO, IOApp}
+import java.util.concurrent.TimeUnit
+
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
@@ -25,51 +25,59 @@ import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.QualityOfService
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.impl.net.{BrokerConnector, Config, Connection, Message}
+import zio.duration.Duration
+import zio.interop.catz._
+import zio.interop.catz.implicits._
+import zio.{App, Task, ZEnv, ZIO}
 
 import scala.concurrent.duration._
+object LocalSubscriber extends App {
 
-object LocalSubscriber extends IOApp {
+  private val Success: Int = 0 & 0xff
+  private val Error: Int = 1 & 0xff
 
-  val stopTopic: String = s"$localSubscriber/stop"
-  val subscribedTopics: Vector[(String, QualityOfService)] = Vector(
+  private val stopTopic: String = s"$localSubscriber/stop"
+  private val subscribedTopics: Vector[(String, QualityOfService)] = Vector(
     (stopTopic, ExactlyOnce),
     ("AtMostOnce", AtMostOnce),
     ("AtLeastOnce", AtLeastOnce),
     ("ExactlyOnce", ExactlyOnce)
   )
 
-  val unsubscribedTopics: Vector[String] = Vector("AtMostOnce", "AtLeastOnce", "ExactlyOnce")
+  private val unsubscribedTopics: Vector[String] = Vector("AtMostOnce", "AtLeastOnce", "ExactlyOnce")
 
-  override def run(args: List[String]): IO[ExitCode] = {
-    BrokerConnector[IO]("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true).use { bc =>
+  private def putStrLn(s: String): Task[Unit] = Task.effectTotal(println(s))
+
+  override def run(args: List[String]): ZIO[ZEnv, Nothing, Int] = {
+    BrokerConnector[Task]("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true).use { bc =>
       val config = Config(s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo"))
       Connection(bc, config).use { connection =>
-        SignallingRef[IO, Boolean](false).flatMap { stopSignal =>
+        SignallingRef[Task, Boolean](false).flatMap { stopSignal =>
           val subscriber = for {
             s <- connection.subscribe(subscribedTopics)
             _ <- s.traverse { p =>
               putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
             }
-            _ <- IO.sleep(23.seconds)
+            _ <- ZIO.sleep(Duration(23, TimeUnit.SECONDS))
             _ <- connection.unsubscribe(unsubscribedTopics)
             _ <- putStrLn(s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
             _ <- stopSignal.discrete.compile.drain
           } yield ()
           val reader = connection.messages().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
           for {
-            _ <- IO.race(reader, subscriber)
-          } yield ExitCode.Success
+            _ <- reader.race(subscriber)
+          } yield ()
         }
       }
     }
-  }.handleErrorWith {
+  }.tapError {
     case ConnectionFailure(reason) =>
-      putStrLn(s"Connection failure: ${Console.RED}${reason.show}${Console.RESET}").as(ExitCode.Error)
-  }
+      putStrLn(s"Connection failure: ${Console.RED}${reason.show}${Console.RESET}")
+  }.fold(_ => Error, _ => Success)
 
-  private def processMessages(stopSignal: SignallingRef[IO, Boolean])(message: Message): Stream[IO, Unit] = message match {
+  private def processMessages(stopSignal: SignallingRef[Task, Boolean])(message: Message): Stream[Task, Unit] = message match {
     case Message(LocalSubscriber.stopTopic, _) => Stream.eval_(stopSignal.set(true))
-    case Message(topic, payload) => Stream.eval(IO {
+    case Message(topic, payload) => Stream.eval(Task {
       println(s"Topic ${Console.CYAN}$topic${Console.RESET}: ${Console.BOLD}${new String(payload.toArray, "UTF-8")}${Console.RESET}")
     })
   }
