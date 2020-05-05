@@ -16,16 +16,13 @@
 
 package net.sigusr.mqtt.examples
 
-import java.net.InetSocketAddress
-
 import cats.effect.Console.io._
-import cats.effect.{ Blocker, ExitCode, IO, IOApp }
+import cats.effect.{ExitCode, IO, IOApp}
 import cats.implicits._
 import fs2.Stream
-import fs2.io.tcp.SocketGroup
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
-import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
-import net.sigusr.mqtt.impl.net.{ BrokerConnector, Config, Connection }
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
+import net.sigusr.mqtt.impl.net.{BrokerConnector, Config, Connection}
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -49,23 +46,19 @@ object LocalPublisher extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
     if (args.nonEmpty) {
       val messages = args.toVector
-      Blocker[IO].use { blocker =>
-        SocketGroup[IO](blocker).use { socketGroup =>
-          socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
-            val bc = BrokerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
-            val config = Config(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
-            Connection(bc, config).use { connection =>
-              (for {
-                m <- ticks().zipRight(randomMessage(messages).zip(topics))
-                message = m._1
-                topic = m._2._1
-                qos = m._2._2
-                _ <- Stream.eval(putStrLn(
-                  s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS ${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"))
-                _ <- Stream.eval(connection.publish(topic, payload(message), qos))
-              } yield ()).compile.drain
-            }
-          }
+      BrokerConnector[IO]("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true).use { bc =>
+        val config = Config(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
+        Connection(bc, config).use { connection =>
+          (for {
+            m <- ticks().zipRight(randomMessage(messages).zip(topics))
+            message = m._1
+            topic = m._2._1
+            qos = m._2._2
+            _ <- Stream.eval(putStrLn(
+              s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS ${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"
+            ))
+            _ <- Stream.eval(connection.publish(topic, payload(message), qos))
+          } yield ()).compile.drain
         }
       }.as(ExitCode.Success)
     }.handleErrorWith {

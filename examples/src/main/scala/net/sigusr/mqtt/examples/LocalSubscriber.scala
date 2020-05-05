@@ -16,18 +16,15 @@
 
 package net.sigusr.mqtt.examples
 
-import java.net.InetSocketAddress
-
 import cats.effect.Console.io._
-import cats.effect.{ Blocker, ExitCode, IO, IOApp }
+import cats.effect.{ExitCode, IO, IOApp}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
-import fs2.io.tcp.SocketGroup
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.QualityOfService
-import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
-import net.sigusr.mqtt.impl.net.{ BrokerConnector, Config, Connection, Message }
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
+import net.sigusr.mqtt.impl.net.{BrokerConnector, Config, Connection, Message}
 
 import scala.concurrent.duration._
 
@@ -38,34 +35,30 @@ object LocalSubscriber extends IOApp {
     (stopTopic, ExactlyOnce),
     ("AtMostOnce", AtMostOnce),
     ("AtLeastOnce", AtLeastOnce),
-    ("ExactlyOnce", ExactlyOnce))
+    ("ExactlyOnce", ExactlyOnce)
+  )
 
   val unsubscribedTopics: Vector[String] = Vector("AtMostOnce", "AtLeastOnce", "ExactlyOnce")
 
   override def run(args: List[String]): IO[ExitCode] = {
-    Blocker[IO].use { blocker =>
-      SocketGroup[IO](blocker).use { socketGroup =>
-        socketGroup.client[IO](new InetSocketAddress("localhost", 1883)).use { socket =>
-          val bc = BrokerConnector[IO](socket, Int.MaxValue.seconds, 3.seconds, traceMessages = true)
-          val config = Config(s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo"))
-          Connection(bc, config).use { connection =>
-            SignallingRef[IO, Boolean](false).flatMap { stopSignal =>
-              val subscriber = for {
-                s <- connection.subscribe(subscribedTopics)
-                _ <- s.traverse { p =>
-                  putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
-                }
-                _ <- IO.sleep(23.seconds)
-                _ <- connection.unsubscribe(unsubscribedTopics)
-                _ <- putStrLn(s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
-                _ <- stopSignal.discrete.compile.drain
-              } yield ()
-              val reader = connection.messages().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
-              for {
-                _ <- IO.race(reader, subscriber)
-              } yield ExitCode.Success
+    BrokerConnector[IO]("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true).use { bc =>
+      val config = Config(s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo"))
+      Connection(bc, config).use { connection =>
+        SignallingRef[IO, Boolean](false).flatMap { stopSignal =>
+          val subscriber = for {
+            s <- connection.subscribe(subscribedTopics)
+            _ <- s.traverse { p =>
+              putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
             }
-          }
+            _ <- IO.sleep(23.seconds)
+            _ <- connection.unsubscribe(unsubscribedTopics)
+            _ <- putStrLn(s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
+            _ <- stopSignal.discrete.compile.drain
+          } yield ()
+          val reader = connection.messages().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
+          for {
+            _ <- IO.race(reader, subscriber)
+          } yield ExitCode.Success
         }
       }
     }
