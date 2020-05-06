@@ -18,15 +18,15 @@ package net.sigusr.mqtt.impl.net
 
 import java.net.InetSocketAddress
 
-import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync}
+import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import enumeratum.values._
 import fs2.io.tcp.SocketGroup
-import fs2.{Pipe, Stream}
+import fs2.{ Pipe, Stream }
 import net.sigusr.mqtt.impl.frames.Frame
-import net.sigusr.mqtt.impl.net.BrokerConnector.Direction.{In, Out}
+import net.sigusr.mqtt.impl.net.BrokerConnector.Direction.{ In, Out }
 import scodec.Codec
-import scodec.stream.{StreamDecoder, StreamEncoder}
+import scodec.stream.{ StreamDecoder, StreamEncoder }
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -56,8 +56,7 @@ object BrokerConnector {
     port: Int,
     readTimeout: Option[FiniteDuration] = None,
     writeTimeout: Option[FiniteDuration] = None,
-    traceMessages: Boolean = false
-  ): Resource[F, BrokerConnector[F]] = for {
+    traceMessages: Boolean = false): Resource[F, BrokerConnector[F]] = for {
     blocker <- Blocker[F]
     socketGroup <- SocketGroup[F](blocker)
     socket <- socketGroup.client[F](new InetSocketAddress(host, port))

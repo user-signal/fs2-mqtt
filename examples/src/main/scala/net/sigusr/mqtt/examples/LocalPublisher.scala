@@ -19,10 +19,10 @@ package net.sigusr.mqtt.examples
 import cats.effect.ExitCode
 import cats.implicits._
 import fs2.Stream
-import monix.eval.{Task, TaskApp}
+import monix.eval.{ Task, TaskApp }
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
-import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
-import net.sigusr.mqtt.impl.net.{BrokerConnector, Config, Connection}
+import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
+import net.sigusr.mqtt.impl.net.{ BrokerConnector, Config, Connection }
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -57,8 +57,7 @@ object LocalPublisher extends TaskApp {
             topic = m._2._1
             qos = m._2._2
             _ <- Stream.eval(putStrLn(
-              s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS ${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"
-            ))
+              s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS ${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"))
             _ <- Stream.eval(connection.publish(topic, payload(message), qos))
           } yield ()).compile.drain
         }

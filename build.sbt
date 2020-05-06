@@ -36,7 +36,7 @@ lazy val core = project
   .configs(IntegrationTest)
   .settings(commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
     name := """fs2-mqtt""",
-    version := "0.2.0",
+    version := "0.3.0-SNAPSHOT",
 
     libraryDependencies ++= Seq(
       "com.beachape"   %% "enumeratum"    % "1.6.0",
