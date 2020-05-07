@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-package net.sigusr.mqtt.impl.net
+package net.sigusr.mqtt.impl
 
-sealed trait Result
-object Result {
-  case object Empty extends Result
-  case class QoS(values: Vector[Int]) extends Result
+package object protocol {
+
+  val DEFAULT_KEEP_ALIVE: Int = 30
+
 }
-

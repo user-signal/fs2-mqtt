@@ -24,7 +24,7 @@ import fs2.concurrent.SignallingRef
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.QualityOfService
 import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
-import net.sigusr.mqtt.impl.net.{ BrokerConnector, Config, Connection, Message }
+import net.sigusr.mqtt.impl.protocol.{ BrokerConnector, Config, Connection, Message }
 import zio.duration.Duration
 import zio.interop.catz._
 import zio.interop.catz.implicits._

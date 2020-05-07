@@ -14,24 +14,24 @@
  * limitations under the License.
  */
 
-package net.sigusr.mqtt.impl.net
+package net.sigusr.mqtt.impl.frames
 
 import net.sigusr.mqtt.api.QualityOfService
 import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce }
-import net.sigusr.mqtt.impl.frames._
+import net.sigusr.mqtt.impl.protocol.Config
 import scodec.bits.ByteVector
 
 object Builders {
 
-  private[net] def subscribeFrame(messageId: Int, topics: Vector[(String, QualityOfService)]) = {
+  def subscribeFrame(messageId: Int, topics: Vector[(String, QualityOfService)]): SubscribeFrame = {
     SubscribeFrame(Header(qos = AtLeastOnce.value), messageId, topics.map((v: (String, QualityOfService)) => (v._1, v._2.value)))
   }
 
-  private[net] def unsubscribeFrame(messageId: Int, topics: Vector[String]) = {
+  def unsubscribeFrame(messageId: Int, topics: Vector[String]): UnsubscribeFrame = {
     UnsubscribeFrame(Header(qos = AtLeastOnce.value), messageId, topics)
   }
 
-  private[net] def connectFrame(config: Config): ConnectFrame = {
+  def connectFrame(config: Config): ConnectFrame = {
     val header = Header(qos = AtMostOnce.value)
     val retain = config.will.fold(false)(_.retain)
     val qos = config.will.fold(AtMostOnce.value)(_.qos.value)
@@ -49,7 +49,7 @@ object Builders {
     ConnectFrame(header, variableHeader, config.clientId, topic, message, config.user, config.password)
   }
 
-  private[net] def publishFrame(topic: String, messageId: Option[Int], payload: Vector[Byte], qos: QualityOfService, retain: Boolean) = {
+  def publishFrame(topic: String, messageId: Option[Int], payload: Vector[Byte], qos: QualityOfService, retain: Boolean): PublishFrame = {
     val header = Header(dup = false, qos.value, retain = retain)
     PublishFrame(header, topic, messageId, ByteVector(payload))
   }

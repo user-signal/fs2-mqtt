@@ -22,7 +22,7 @@ import fs2.Stream
 import monix.eval.{ Task, TaskApp }
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
-import net.sigusr.mqtt.impl.net.{ BrokerConnector, Config, Connection }
+import net.sigusr.mqtt.impl.protocol.{ BrokerConnector, Config, Connection }
 
 import scala.concurrent.duration._
 import scala.util.Random

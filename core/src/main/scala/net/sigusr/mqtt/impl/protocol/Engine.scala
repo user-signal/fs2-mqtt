@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package net.sigusr.mqtt.impl.net
+package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.concurrent.Deferred
 import cats.effect.implicits._
@@ -22,12 +22,12 @@ import cats.effect.{ Concurrent, Timer }
 import cats.implicits._
 import fs2.concurrent.{ Queue, SignallingRef }
 import fs2.{ INothing, Pipe, Pull, Stream }
-import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
 import net.sigusr.mqtt.api.ConnectionFailureReason
 import net.sigusr.mqtt.api.Errors.{ ConnectionFailure, ProtocolError }
+import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
 import net.sigusr.mqtt.impl.frames._
-import net.sigusr.mqtt.impl.net.Builders.connectFrame
-import net.sigusr.mqtt.impl.net.Result.{ Empty, QoS }
+import Builders.connectFrame
+import net.sigusr.mqtt.impl.protocol.Result.{ Empty, QoS }
 import scodec.bits.ByteVector
 
 trait Engine[F[_]] {

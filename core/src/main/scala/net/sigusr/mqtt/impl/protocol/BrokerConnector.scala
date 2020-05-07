@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package net.sigusr.mqtt.impl.net
+package net.sigusr.mqtt.impl.protocol
 
 import java.net.InetSocketAddress
 
@@ -24,7 +24,7 @@ import enumeratum.values._
 import fs2.io.tcp.SocketGroup
 import fs2.{ Pipe, Stream }
 import net.sigusr.mqtt.impl.frames.Frame
-import net.sigusr.mqtt.impl.net.BrokerConnector.Direction.{ In, Out }
+import net.sigusr.mqtt.impl.protocol.BrokerConnector.Direction.{ In, Out }
 import scodec.Codec
 import scodec.stream.{ StreamDecoder, StreamEncoder }
 

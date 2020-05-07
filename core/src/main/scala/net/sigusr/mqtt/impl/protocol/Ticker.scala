@@ -14,38 +14,36 @@
  * limitations under the License.
  */
 
-package net.sigusr.mqtt.impl.net
+package net.sigusr.mqtt.impl.protocol
 
+import java.util.concurrent.TimeUnit
+
+import cats.effect.concurrent.Ref
 import cats.effect.implicits._
-import cats.effect.{ Concurrent, Fiber }
+import cats.effect.{ Concurrent, Timer }
 import cats.implicits._
-import fs2.concurrent.Queue
-import fs2.{ Pure, Stream }
+import fs2.Stream
 
-trait IdGenerator[F[_]] {
+import scala.concurrent.duration.FiniteDuration
 
-  def next: F[Int]
+trait Ticker[F[_]] {
+
+  def reset: F[Unit]
 
   def cancel: F[Unit]
 
 }
 
-object IdGenerator {
+object Ticker {
 
-  private def idQueue[F[_]: Concurrent](q: Queue[F, Int]): F[Fiber[F, Unit]] = {
-    def go(v: Int): Stream[Pure, Int] = v match {
-      case 65535 => Stream.emit(0) ++ go(1)
-      case _ => Stream.emit(v) ++ go(v + 1)
-    }
-    go(0).through(q.enqueue(_)).compile.drain.start
-  }
+  def apply[F[_]: Concurrent: Timer](interval: Long, program: F[Unit]): F[Ticker[F]] = for {
+    s <- Ref.of[F, Long](1)
+    f <- (Stream.fixedRate(FiniteDuration(1, TimeUnit.SECONDS)) *>
+      Stream.eval(s.modify(l => (l + 1, l))))
+      .filter(_ % interval == 0).evalMap(_ => program).compile.drain.start
+  } yield new Ticker[F] {
 
-  def apply[F[_]: Concurrent]: F[IdGenerator[F]] = for {
-    q <- Queue.bounded[F, Int](2)
-    f <- idQueue[F](q)
-  } yield new IdGenerator[F] {
-
-    override def next: F[Int] = q.dequeue1
+    override def reset: F[Unit] = s.set(1)
 
     override def cancel: F[Unit] = f.cancel
   }
