@@ -24,7 +24,7 @@ import fs2.concurrent.SignallingRef
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.QualityOfService
 import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
-import net.sigusr.mqtt.impl.protocol.{ BrokerConnector, Config, Connection, Message }
+import net.sigusr.mqtt.impl.protocol.{ Message, Session, SessionConfig, TransportConfig }
 import zio.duration.Duration
 import zio.interop.catz._
 import zio.interop.catz.implicits._
@@ -48,25 +48,24 @@ object LocalSubscriber extends App {
   private def putStrLn(s: String): Task[Unit] = Task.effectTotal(println(s))
 
   override def run(args: List[String]): ZIO[ZEnv, Nothing, Int] = {
-    BrokerConnector[Task]("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true).use { bc =>
-      val config = Config(s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo"))
-      Connection(bc, config).use { connection =>
-        SignallingRef[Task, Boolean](false).flatMap { stopSignal =>
-          val subscriber = for {
-            s <- connection.subscribe(subscribedTopics)
-            _ <- s.traverse { p =>
-              putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
-            }
-            _ <- ZIO.sleep(Duration(23, TimeUnit.SECONDS))
-            _ <- connection.unsubscribe(unsubscribedTopics)
-            _ <- putStrLn(s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
-            _ <- stopSignal.discrete.compile.drain
-          } yield ()
-          val reader = connection.messages().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
-          for {
-            _ <- reader.race(subscriber)
-          } yield ()
-        }
+    val transportConfig = TransportConfig("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true)
+    val sessionConfig = SessionConfig(s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo"))
+    Session[Task](transportConfig, sessionConfig).use { session =>
+      SignallingRef[Task, Boolean](false).flatMap { stopSignal =>
+        val subscriber = for {
+          s <- session.subscribe(subscribedTopics)
+          _ <- s.traverse { p =>
+            putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
+          }
+          _ <- ZIO.sleep(Duration(23, TimeUnit.SECONDS))
+          _ <- session.unsubscribe(unsubscribedTopics)
+          _ <- putStrLn(s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
+          _ <- stopSignal.discrete.compile.drain
+        } yield ()
+        val reader = session.messages().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
+        for {
+          _ <- reader.race(subscriber)
+        } yield ()
       }
     }
   }.tapError {

@@ -30,9 +30,9 @@ import Builders.connectFrame
 import net.sigusr.mqtt.impl.protocol.Result.{ Empty, QoS }
 import scodec.bits.ByteVector
 
-trait Engine[F[_]] {
+trait Protocol[F[_]] {
 
-  def connect(config: Config): F[Unit]
+  def connect(config: SessionConfig): F[Unit]
 
   def send: Frame => F[Unit]
 
@@ -44,18 +44,18 @@ trait Engine[F[_]] {
 
 }
 
-object Engine {
+object Protocol {
 
   private val QUEUE_SIZE = 128
 
   def apply[F[_]: Concurrent: Timer](
-    brockerConnector: BrokerConnector[F],
-    keepAlive: Long): F[Engine[F]] = {
+    transport: Transport[F],
+    inFlightOutBound: AtomicMap[F, Int, Frame],
+    keepAlive: Long): F[Protocol[F]] = {
 
     def inboundMessagesInterpreter(
       messageQueue: Queue[F, Message],
       frameQueue: Queue[F, Frame],
-      inFlightOutBound: AtomicMap[F, Int, Frame],
       pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
       connected: Deferred[F, Int]): Pipe[F, Frame, Unit] = {
 
@@ -150,20 +150,19 @@ object Engine {
       frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
       stopSignal <- SignallingRef[F, Boolean](false)
       pingTicker <- Ticker(keepAlive, frameQueue.enqueue1(PingReqFrame(Header())))
-      inFlightOutBound <- AtomicMap[F, Int, Frame]
       pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
 
       outbound <- frameQueue.dequeue
         .through(outboundMessagesInterpreter(inFlightOutBound, pingTicker))
-        .through(brockerConnector.outFrameStream)
+        .through(transport.outFrameStream)
         .compile.drain.start
 
-      inbound <- brockerConnector.inFrameStream
-        .through(inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults, connected))
+      inbound <- transport.inFrameStream
+        .through(inboundMessagesInterpreter(messageQueue, frameQueue, pendingResults, connected))
         .onComplete(Stream.eval(stopSignal.set(true)))
         .compile.drain.start
 
-    } yield new Engine[F] {
+    } yield new Protocol[F] {
 
       override def cancel: F[Unit] = pingTicker.cancel *> outbound.cancel *> inbound.cancel
 
@@ -178,7 +177,7 @@ object Engine {
 
       override def messages: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
 
-      override def connect(config: Config): F[Unit] = for {
+      override def connect(config: SessionConfig): F[Unit] = for {
         _ <- send(connectFrame(config))
         r <- connected.get
       } yield if (r == 0) () else throw ConnectionFailure(ConnectionFailureReason.withValue(r))

@@ -22,7 +22,7 @@ import fs2.Stream
 import monix.eval.{ Task, TaskApp }
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
-import net.sigusr.mqtt.impl.protocol.{ BrokerConnector, Config, Connection }
+import net.sigusr.mqtt.impl.protocol.{ Session, SessionConfig, TransportConfig }
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -48,19 +48,18 @@ object LocalPublisher extends TaskApp {
   override def run(args: List[String]): Task[ExitCode] = {
     if (args.nonEmpty) {
       val messages = args.toVector
-      BrokerConnector[Task]("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true).use { bc =>
-        val config = Config(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
-        Connection(bc, config).use { connection =>
-          (for {
-            m <- ticks().zipRight(randomMessage(messages).zip(topics))
-            message = m._1
-            topic = m._2._1
-            qos = m._2._2
-            _ <- Stream.eval(putStrLn(
-              s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS ${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"))
-            _ <- Stream.eval(connection.publish(topic, payload(message), qos))
-          } yield ()).compile.drain
-        }
+      val transportConfig = TransportConfig("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true)
+      val sessionConfig = SessionConfig(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
+      Session[Task](transportConfig, sessionConfig).use { session =>
+        (for {
+          m <- ticks().zipRight(randomMessage(messages).zip(topics))
+          message = m._1
+          topic = m._2._1
+          qos = m._2._2
+          _ <- Stream.eval(putStrLn(
+            s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS ${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"))
+          _ <- Stream.eval(session.publish(topic, payload(message), qos))
+        } yield ()).compile.drain
       }.as(ExitCode.Success)
     }.handleErrorWith {
       case ConnectionFailure(reason) =>

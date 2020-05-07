@@ -18,7 +18,7 @@ package net.sigusr.mqtt.impl.frames
 
 import net.sigusr.mqtt.api.QualityOfService
 import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce }
-import net.sigusr.mqtt.impl.protocol.Config
+import net.sigusr.mqtt.impl.protocol.SessionConfig
 import scodec.bits.ByteVector
 
 object Builders {
@@ -31,7 +31,7 @@ object Builders {
     UnsubscribeFrame(Header(qos = AtLeastOnce.value), messageId, topics)
   }
 
-  def connectFrame(config: Config): ConnectFrame = {
+  def connectFrame(config: SessionConfig): ConnectFrame = {
     val header = Header(qos = AtMostOnce.value)
     val retain = config.will.fold(false)(_.retain)
     val qos = config.will.fold(AtMostOnce.value)(_.qos.value)

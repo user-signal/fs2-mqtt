@@ -22,14 +22,14 @@ import fs2.Stream
 import net.sigusr.mqtt.api.Errors.ProtocolError
 import net.sigusr.mqtt.api.QualityOfService
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
+import net.sigusr.mqtt.impl.frames.Builders._
 import net.sigusr.mqtt.impl.frames._
-import Builders._
 import net.sigusr.mqtt.impl.protocol.Result.QoS
 
 sealed case class Will(retain: Boolean, qos: QualityOfService, topic: String, message: String)
 sealed case class Message(topic: String, payload: Vector[Byte])
 
-sealed case class Config(
+sealed case class SessionConfig(
   clientId: String,
   keepAlive: Int = DEFAULT_KEEP_ALIVE,
   cleanSession: Boolean = true,
@@ -37,7 +37,7 @@ sealed case class Config(
   user: Option[String] = None,
   password: Option[String] = None)
 
-trait Connection[F[_]] {
+trait Session[F[_]] {
 
   def disconnect: F[Unit]
 
@@ -51,20 +51,23 @@ trait Connection[F[_]] {
 
 }
 
-object Connection {
+object Session {
 
   def apply[F[_]: Concurrent: Timer: ContextShift](
-    brockerConnector: BrokerConnector[F],
-    config: Config): Resource[F, Connection[F]] =
-    Resource.make(fromBrokerConnector(brockerConnector, config))(_.disconnect)
+    transportConfig: TransportConfig,
+    sessionConfig: SessionConfig): Resource[F, Session[F]] = for {
+    transport <- Transport[F](transportConfig)
+    session <- Resource.make(fromTransport(transport, sessionConfig))(_.disconnect)
+  } yield session
 
-  private def fromBrokerConnector[F[_]: Concurrent: Timer: ContextShift](
-    brockerConnector: BrokerConnector[F],
-    config: Config): F[Connection[F]] = for {
+  private def fromTransport[F[_]: Concurrent: Timer: ContextShift](
+    transport: Transport[F],
+    sessionConfig: SessionConfig): F[Session[F]] = for {
     ids <- IdGenerator[F]
-    engine <- Engine(brockerConnector, config.keepAlive.toLong)
-    _ <- engine.connect(config)
-  } yield new Connection[F] {
+    inFlightOutBound <- AtomicMap[F, Int, Frame]
+    engine <- Protocol(transport, inFlightOutBound, sessionConfig.keepAlive.toLong)
+    _ <- engine.connect(sessionConfig)
+  } yield new Session[F] {
 
     override val disconnect: F[Unit] = {
       val disconnectMessage = DisconnectFrame(Header())

@@ -24,13 +24,20 @@ import enumeratum.values._
 import fs2.io.tcp.SocketGroup
 import fs2.{ Pipe, Stream }
 import net.sigusr.mqtt.impl.frames.Frame
-import net.sigusr.mqtt.impl.protocol.BrokerConnector.Direction.{ In, Out }
+import net.sigusr.mqtt.impl.protocol.Transport.Direction.{ In, Out }
 import scodec.Codec
 import scodec.stream.{ StreamDecoder, StreamEncoder }
 
 import scala.concurrent.duration.FiniteDuration
 
-trait BrokerConnector[F[_]] {
+sealed case class TransportConfig(
+  host: String,
+  port: Int,
+  readTimeout: Option[FiniteDuration] = None,
+  writeTimeout: Option[FiniteDuration] = None,
+  traceMessages: Boolean = false)
+
+trait Transport[F[_]] {
 
   def inFrameStream: Stream[F, Frame]
 
@@ -38,7 +45,7 @@ trait BrokerConnector[F[_]] {
 
 }
 
-object BrokerConnector {
+object Transport {
 
   sealed abstract class Direction(val value: Char, val color: String) extends CharEnumEntry
   object Direction extends CharEnum[Direction] {
@@ -52,29 +59,27 @@ object BrokerConnector {
   private val NUM_BYTES = 4096
 
   def apply[F[_]: Concurrent: ContextShift](
-    host: String,
-    port: Int,
-    readTimeout: Option[FiniteDuration] = None,
-    writeTimeout: Option[FiniteDuration] = None,
-    traceMessages: Boolean = false): Resource[F, BrokerConnector[F]] = for {
+    config: TransportConfig): Resource[F, Transport[F]] = for {
     blocker <- Blocker[F]
     socketGroup <- SocketGroup[F](blocker)
-    socket <- socketGroup.client[F](new InetSocketAddress(host, port))
-  } yield new BrokerConnector[F] {
+    socket <- socketGroup.client[F](new InetSocketAddress(config.host, config.port))
+  } yield new Transport[F] {
 
     private def tracingPipe(d: Direction): Pipe[F, Frame, Frame] = frames => for {
       frame <- frames
-      _ <- Stream.eval(Sync[F].delay(println(s" ${d.value} ${d.color}$frame${Console.RESET}")).whenA(traceMessages))
+      _ <- Stream.eval(Sync[F]
+        .delay(println(s" ${d.value} ${d.color}$frame${Console.RESET}"))
+        .whenA(config.traceMessages))
     } yield frame
 
     def outFrameStream: Pipe[F, Frame, Unit] = (frames: Stream[F, Frame]) =>
       frames
         .through(tracingPipe(Out))
         .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
-        .through(socket.writes(writeTimeout))
+        .through(socket.writes(config.writeTimeout))
 
     def inFrameStream: Stream[F, Frame] =
-      socket.reads(NUM_BYTES, readTimeout)
+      socket.reads(NUM_BYTES, config.readTimeout)
         .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
         .through(tracingPipe(In))
   }
