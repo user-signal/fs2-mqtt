@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Frédéric Cabestre
+ * Copyright 2020 Frédéric Cabestre
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package net.sigusr.mqtt
+package net.sigusr.mqtt.impl
 
-package object api {
+package object net {
 
   val DEFAULT_KEEP_ALIVE: Int = 30
 

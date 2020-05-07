@@ -36,6 +36,8 @@ trait Engine[F[_]] {
 
   def send: Frame => F[Unit]
 
+  def sendReceive(frame: Frame, messageId: Int): F[Result]
+
   def cancel: F[Unit]
 
   def messages: Stream[F, Message]
@@ -48,13 +50,13 @@ object Engine {
 
   def apply[F[_]: Concurrent: Timer](
     brockerConnector: BrokerConnector[F],
-    pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
     keepAlive: Long): F[Engine[F]] = {
 
     def inboundMessagesInterpreter(
       messageQueue: Queue[F, Message],
       frameQueue: Queue[F, Frame],
       inFlightOutBound: AtomicMap[F, Int, Frame],
+      pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
       connected: Deferred[F, Int]): Pipe[F, Frame, Unit] = {
 
       def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] = s.pull.uncons1.flatMap {
@@ -133,7 +135,7 @@ object Engine {
       pingTicker: Ticker[F]): Pipe[F, Frame, Frame] = {
       def loop(s: Stream[F, Frame]): Pull[F, Frame, Unit] = s.pull.uncons1.flatMap {
         case Some((hd, tl)) => (hd match {
-          case PublishFrame(header: Header, _, messageIdentifier, _) =>
+          case PublishFrame(_: Header, _, messageIdentifier, _) =>
             Pull.eval(messageIdentifier.fold(Concurrent[F].pure[Unit](()))(inFlightOutBound.update(_, hd)))
           case _ => Pull.eval(Concurrent[F].pure[Unit](()))
         }) >> Pull.output1(hd) >> Pull.eval(pingTicker.reset) >> loop(tl)
@@ -149,6 +151,7 @@ object Engine {
       stopSignal <- SignallingRef[F, Boolean](false)
       pingTicker <- Ticker(keepAlive, frameQueue.enqueue1(PingReqFrame(Header())))
       inFlightOutBound <- AtomicMap[F, Int, Frame]
+      pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
 
       outbound <- frameQueue.dequeue
         .through(outboundMessagesInterpreter(inFlightOutBound, pingTicker))
@@ -156,7 +159,7 @@ object Engine {
         .compile.drain.start
 
       inbound <- brockerConnector.inFrameStream
-        .through(inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, connected))
+        .through(inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults, connected))
         .onComplete(Stream.eval(stopSignal.set(true)))
         .compile.drain.start
 
@@ -165,6 +168,13 @@ object Engine {
       override def cancel: F[Unit] = pingTicker.cancel *> outbound.cancel *> inbound.cancel
 
       override def send: Frame => F[Unit] = frameQueue.enqueue1
+
+      override def sendReceive(frame: Frame, messageId: Int): F[Result] = for {
+        d <- Deferred[F, Result]
+        _ <- pendingResults.update(messageId, d)
+        _ <- frameQueue.enqueue1(frame)
+        r <- d.get
+      } yield r
 
       override def messages: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
 

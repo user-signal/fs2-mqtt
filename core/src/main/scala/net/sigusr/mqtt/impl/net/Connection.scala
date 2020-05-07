@@ -20,12 +20,12 @@ import cats.effect.concurrent.Deferred
 import cats.effect.{ Concurrent, ContextShift, Resource, Timer }
 import cats.implicits._
 import fs2.Stream
+import net.sigusr.mqtt.api.Errors.ProtocolError
+import net.sigusr.mqtt.api.QualityOfService
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
-import net.sigusr.mqtt.api.{ DEFAULT_KEEP_ALIVE, QualityOfService }
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.net.Builders._
 import net.sigusr.mqtt.impl.net.Result.QoS
-import net.sigusr.mqtt.api.Errors.ProtocolError
 
 sealed case class Will(retain: Boolean, qos: QualityOfService, topic: String, message: String)
 sealed case class Message(topic: String, payload: Vector[Byte])
@@ -62,9 +62,8 @@ object Connection {
   private def fromBrokerConnector[F[_]: Concurrent: Timer: ContextShift](
     brockerConnector: BrokerConnector[F],
     config: Config): F[Connection[F]] = for {
-    pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
     ids <- IdGenerator[F]
-    engine <- Engine(brockerConnector, pendingResults, config.keepAlive.toLong)
+    engine <- Engine(brockerConnector, config.keepAlive.toLong)
     _ <- engine.connect(config)
   } yield new Connection[F] {
 
@@ -78,10 +77,7 @@ object Connection {
     override def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]] = {
       for {
         messageId <- ids.next
-        d <- Deferred[F, Result]
-        _ <- pendingResults.update(messageId, d)
-        _ <- engine.send(subscribeFrame(messageId, topics))
-        v <- d.get
+        v <- engine.sendReceive(subscribeFrame(messageId, topics), messageId)
       } yield v match {
         case QoS(t) => topics.zip(t).map(p => (p._1._1, QualityOfService.withValue(p._2)))
         case _ => throw ProtocolError
@@ -91,10 +87,7 @@ object Connection {
     override def unsubscribe(topics: Vector[String]): F[Unit] = {
       for {
         messageId <- ids.next
-        d <- Deferred[F, Result]
-        _ <- pendingResults.update(messageId, d)
-        _ <- engine.send(unsubscribeFrame(messageId, topics))
-        _ <- d.get
+        _ <- engine.sendReceive(unsubscribeFrame(messageId, topics), messageId)
       } yield ()
     }
 
@@ -104,10 +97,7 @@ object Connection {
           engine.send(publishFrame(topic, None, payload, qos, retain))
         case QualityOfService.AtLeastOnce | QualityOfService.ExactlyOnce => for {
           messageId <- ids.next
-          d <- Deferred[F, Result]
-          _ <- pendingResults.update(messageId, d)
-          _ <- engine.send(publishFrame(topic, Some(messageId), payload, qos, retain))
-          _ <- d.get
+          _ <- engine.sendReceive(publishFrame(topic, Some(messageId), payload, qos, retain), messageId)
         } yield ()
       }
     }
