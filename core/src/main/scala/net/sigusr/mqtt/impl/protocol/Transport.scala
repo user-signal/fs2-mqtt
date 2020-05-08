@@ -18,15 +18,15 @@ package net.sigusr.mqtt.impl.protocol
 
 import java.net.InetSocketAddress
 
-import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
+import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync}
 import cats.implicits._
 import enumeratum.values._
 import fs2.io.tcp.SocketGroup
-import fs2.{ Pipe, Stream }
+import fs2.{Pipe, Stream}
 import net.sigusr.mqtt.impl.frames.Frame
-import net.sigusr.mqtt.impl.protocol.Transport.Direction.{ In, Out }
+import net.sigusr.mqtt.impl.protocol.Transport.Direction.{In, Out}
 import scodec.Codec
-import scodec.stream.{ StreamDecoder, StreamEncoder }
+import scodec.stream.{StreamDecoder, StreamEncoder}
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -35,7 +35,9 @@ sealed case class TransportConfig(
   port: Int,
   readTimeout: Option[FiniteDuration] = None,
   writeTimeout: Option[FiniteDuration] = None,
-  traceMessages: Boolean = false)
+  numReadBytes: Int = 4096,
+  traceMessages: Boolean = false
+)
 
 trait Transport[F[_]] {
 
@@ -55,31 +57,29 @@ object Transport {
     val values: IndexedSeq[Direction] = findValues
   }
 
-  //TODO parametrize?
-  private val NUM_BYTES = 4096
-
   def apply[F[_]: Concurrent: ContextShift](
-    config: TransportConfig): Resource[F, Transport[F]] = for {
+    transportConfig: TransportConfig
+  ): Resource[F, Transport[F]] = for {
     blocker <- Blocker[F]
     socketGroup <- SocketGroup[F](blocker)
-    socket <- socketGroup.client[F](new InetSocketAddress(config.host, config.port))
+    socket <- socketGroup.client[F](new InetSocketAddress(transportConfig.host, transportConfig.port))
   } yield new Transport[F] {
 
     private def tracingPipe(d: Direction): Pipe[F, Frame, Frame] = frames => for {
       frame <- frames
       _ <- Stream.eval(Sync[F]
         .delay(println(s" ${d.value} ${d.color}$frame${Console.RESET}"))
-        .whenA(config.traceMessages))
+        .whenA(transportConfig.traceMessages))
     } yield frame
 
     def outFrameStream: Pipe[F, Frame, Unit] = (frames: Stream[F, Frame]) =>
       frames
         .through(tracingPipe(Out))
         .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
-        .through(socket.writes(config.writeTimeout))
+        .through(socket.writes(transportConfig.writeTimeout))
 
     def inFrameStream: Stream[F, Frame] =
-      socket.reads(NUM_BYTES, config.readTimeout)
+      socket.reads(transportConfig.numReadBytes, transportConfig.readTimeout)
         .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
         .through(tracingPipe(In))
   }
