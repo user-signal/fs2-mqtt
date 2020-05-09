@@ -28,7 +28,7 @@
 # A pure functional Scala MQTT client library [![Build Status][build-status-icon]][build-status] [![Coverage Status][coverage-status-icon]][coverage-status]
 
 ## Back then...
-ii
+
 Late 2014, I initiated an [MQTT client library for Scala][akka-mqtt] side project. 
 My purpose was to learn me some [Akka][akka] while trying to deliver something potentially useful. I quickly 
 found the excellent [scodec][scodec] library to encode/decode *MQTT* protocol frames, making

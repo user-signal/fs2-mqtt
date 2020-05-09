@@ -65,21 +65,21 @@ object Session {
     sessionConfig: SessionConfig): F[Session[F]] = for {
     ids <- IdGenerator[F]
     inFlightOutBound <- AtomicMap[F, Int, Frame]
-    engine <- Protocol(transport, inFlightOutBound, sessionConfig.keepAlive.toLong)
-    _ <- engine.connect(sessionConfig)
+    protocol <- Protocol(transport, inFlightOutBound, sessionConfig.keepAlive.toLong)
+    _ <- protocol.connect(sessionConfig)
   } yield new Session[F] {
 
     override val disconnect: F[Unit] = {
       val disconnectMessage = DisconnectFrame(Header())
-      ids.cancel *> engine.send(disconnectMessage)
+      ids.cancel *> protocol.send(disconnectMessage)
     }
 
-    override val messages: Stream[F, Message] = engine.messages
+    override val messages: Stream[F, Message] = protocol.messages
 
     override def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]] = {
       for {
         messageId <- ids.next
-        v <- engine.sendReceive(subscribeFrame(messageId, topics), messageId)
+        v <- protocol.sendReceive(subscribeFrame(messageId, topics), messageId)
       } yield v match {
         case QoS(t) => topics.zip(t).map(p => (p._1._1, QualityOfService.withValue(p._2)))
         case _ => throw ProtocolError
@@ -89,17 +89,17 @@ object Session {
     override def unsubscribe(topics: Vector[String]): F[Unit] = {
       for {
         messageId <- ids.next
-        _ <- engine.sendReceive(unsubscribeFrame(messageId, topics), messageId)
+        _ <- protocol.sendReceive(unsubscribeFrame(messageId, topics), messageId)
       } yield ()
     }
 
     override def publish(topic: String, payload: Vector[Byte], qos: QualityOfService, retain: Boolean): F[Unit] = {
       qos match {
         case QualityOfService.AtMostOnce =>
-          engine.send(publishFrame(topic, None, payload, qos, retain))
+          protocol.send(publishFrame(topic, None, payload, qos, retain))
         case QualityOfService.AtLeastOnce | QualityOfService.ExactlyOnce => for {
           messageId <- ids.next
-          _ <- engine.sendReceive(publishFrame(topic, Some(messageId), payload, qos, retain), messageId)
+          _ <- protocol.sendReceive(publishFrame(topic, Some(messageId), payload, qos, retain), messageId)
         } yield ()
       }
     }
