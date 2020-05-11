@@ -39,8 +39,6 @@ sealed case class SessionConfig(
 
 trait Session[F[_]] {
 
-  def disconnect: F[Unit]
-
   def messages(): Stream[F, Message]
 
   def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]]
@@ -48,6 +46,8 @@ trait Session[F[_]] {
   def unsubscribe(topics: Vector[String]): F[Unit]
 
   def publish(topic: String, payload: Vector[Byte], qos: QualityOfService = AtMostOnce, retain: Boolean = false): F[Unit]
+
+  private[Session] def disconnect: F[Unit]
 
 }
 
@@ -65,8 +65,7 @@ object Session {
     sessionConfig: SessionConfig): F[Session[F]] = for {
     ids <- IdGenerator[F]
     inFlightOutBound <- AtomicMap[F, Int, Frame]
-    protocol <- Protocol(transport, inFlightOutBound, sessionConfig.keepAlive.toLong)
-    _ <- protocol.connect(sessionConfig)
+    protocol <- Protocol(sessionConfig, transport, inFlightOutBound)
   } yield new Session[F] {
 
     override val disconnect: F[Unit] = {

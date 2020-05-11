@@ -18,21 +18,19 @@ package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.concurrent.Deferred
 import cats.effect.implicits._
-import cats.effect.{ Concurrent, Timer }
+import cats.effect.{Concurrent, Timer}
 import cats.implicits._
-import fs2.concurrent.{ Queue, SignallingRef }
-import fs2.{ INothing, Pipe, Pull, Stream }
+import fs2.concurrent.{Queue, SignallingRef}
+import fs2.{INothing, Pipe, Pull, Stream}
 import net.sigusr.mqtt.api.ConnectionFailureReason
-import net.sigusr.mqtt.api.Errors.{ ConnectionFailure, ProtocolError }
-import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
+import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.impl.frames._
 import Builders.connectFrame
-import net.sigusr.mqtt.impl.protocol.Result.{ Empty, QoS }
+import net.sigusr.mqtt.impl.protocol.Result.{Empty, QoS}
 import scodec.bits.ByteVector
 
 trait Protocol[F[_]] {
-
-  def connect(config: SessionConfig): F[Unit]
 
   def send: Frame => F[Unit]
 
@@ -49,15 +47,17 @@ object Protocol {
   private val QUEUE_SIZE = 128
 
   def apply[F[_]: Concurrent: Timer](
+    sessionConfig: SessionConfig,
     transport: Transport[F],
-    inFlightOutBound: AtomicMap[F, Int, Frame],
-    keepAlive: Long): F[Protocol[F]] = {
+    inFlightOutBound: AtomicMap[F, Int, Frame]
+  ): F[Protocol[F]] = {
 
     def inboundMessagesInterpreter(
       messageQueue: Queue[F, Message],
       frameQueue: Queue[F, Frame],
       pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
-      connected: Deferred[F, Int]): Pipe[F, Frame, Unit] = {
+      connected: Deferred[F, Int]
+    ): Pipe[F, Frame, Unit] = {
 
       def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] = s.pull.uncons1.flatMap {
         case Some((hd, tl)) => hd match {
@@ -132,7 +132,8 @@ object Protocol {
 
     def outboundMessagesInterpreter(
       inFlightOutBound: AtomicMap[F, Int, Frame],
-      pingTicker: Ticker[F]): Pipe[F, Frame, Frame] = {
+      pingTicker: Ticker[F]
+    ): Pipe[F, Frame, Frame] = {
       def loop(s: Stream[F, Frame]): Pull[F, Frame, Unit] = s.pull.uncons1.flatMap {
         case Some((hd, tl)) => (hd match {
           case PublishFrame(_: Header, _, messageIdentifier, _) =>
@@ -149,7 +150,7 @@ object Protocol {
       messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
       frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
       stopSignal <- SignallingRef[F, Boolean](false)
-      pingTicker <- Ticker(keepAlive, frameQueue.enqueue1(PingReqFrame(Header())))
+      pingTicker <- Ticker(sessionConfig.keepAlive.toLong, frameQueue.enqueue1(PingReqFrame(Header())))
       pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
 
       outbound <- frameQueue.dequeue
@@ -162,7 +163,10 @@ object Protocol {
         .onComplete(Stream.eval(stopSignal.set(true)))
         .compile.drain.start
 
-    } yield new Protocol[F] {
+      _ <- frameQueue.enqueue1(connectFrame(sessionConfig))
+      r <- connected.get
+
+    } yield if (r == 0) new Protocol[F] {
 
       override def cancel: F[Unit] = pingTicker.cancel *> outbound.cancel *> inbound.cancel
 
@@ -176,11 +180,7 @@ object Protocol {
       } yield r
 
       override def messages: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
-
-      override def connect(config: SessionConfig): F[Unit] = for {
-        _ <- send(connectFrame(config))
-        r <- connected.get
-      } yield if (r == 0) () else throw ConnectionFailure(ConnectionFailureReason.withValue(r))
     }
+    else throw ConnectionFailure(ConnectionFailureReason.withValue(r))
   }
 }

@@ -39,16 +39,14 @@ lazy val core = project
     version := "0.3.0-SNAPSHOT",
 
     libraryDependencies ++= Seq(
-      "com.beachape"   %% "enumeratum"    % "1.6.0",
-      "dev.profunktor" %% "console4cats"  % "0.8.1",
-      "org.specs2"     %% "specs2-core"   % "4.9.4" % "test",
-      "org.scodec"     %% "scodec-core"   % "1.11.7",
-      "org.scodec"     %% "scodec-stream" % "2.0.0",
-      "co.fs2"         %% "fs2-core"      % "2.3.0",
-      "co.fs2"         %% "fs2-io"        % "2.3.0",
-      "org.typelevel"  %% "cats-core"     % "2.1.1",
-      "org.typelevel"  %% "cats-effect"   % "2.1.3"
-
+      "com.beachape"               %% "enumeratum"    % "1.6.0",
+      "org.specs2"                 %% "specs2-core"   % "4.9.4"  % "test",
+      "org.scodec"                 %% "scodec-core"   % "1.11.7",
+      "org.scodec"                 %% "scodec-stream" % "2.0.0",
+      "co.fs2"                     %% "fs2-core"      % "2.3.0",
+      "co.fs2"                     %% "fs2-io"        % "2.3.0",
+      "org.typelevel"              %% "cats-core"     % "2.1.1",
+      "org.typelevel"              %% "cats-effect"   % "2.1.3"
     )
   ))
 
