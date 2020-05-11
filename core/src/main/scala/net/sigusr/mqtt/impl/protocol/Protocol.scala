@@ -44,8 +44,6 @@ trait Protocol[F[_]] {
 
 object Protocol {
 
-  private val QUEUE_SIZE = 128
-
   def apply[F[_]: Concurrent: Timer](
     sessionConfig: SessionConfig,
     transport: Transport[F],

@@ -19,5 +19,6 @@ package net.sigusr.mqtt.impl
 package object protocol {
 
   val DEFAULT_KEEP_ALIVE: Int = 30
+  val QUEUE_SIZE = 128
 
 }

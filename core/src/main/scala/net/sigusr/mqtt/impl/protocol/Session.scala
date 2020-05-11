@@ -47,8 +47,6 @@ trait Session[F[_]] {
 
   def publish(topic: String, payload: Vector[Byte], qos: QualityOfService = AtMostOnce, retain: Boolean = false): F[Unit]
 
-  private[Session] def disconnect: F[Unit]
-
 }
 
 object Session {
@@ -57,21 +55,21 @@ object Session {
     transportConfig: TransportConfig,
     sessionConfig: SessionConfig): Resource[F, Session[F]] = for {
     transport <- Transport[F](transportConfig)
-    session <- Resource.make(fromTransport(transport, sessionConfig))(_.disconnect)
+    session <- Resource(fromTransport(transport, sessionConfig))
   } yield session
+
+  private def tata[F[_]: Concurrent](ids: IdGenerator[F], protocol: Protocol[F]) = {
+    val disconnectMessage = DisconnectFrame(Header())
+    ids.cancel *> protocol.send(disconnectMessage)
+  }
 
   private def fromTransport[F[_]: Concurrent: Timer: ContextShift](
     transport: Transport[F],
-    sessionConfig: SessionConfig): F[Session[F]] = for {
+    sessionConfig: SessionConfig): F[(Session[F], F[Unit])] = for {
     ids <- IdGenerator[F]
     inFlightOutBound <- AtomicMap[F, Int, Frame]
     protocol <- Protocol(sessionConfig, transport, inFlightOutBound)
-  } yield new Session[F] {
-
-    override val disconnect: F[Unit] = {
-      val disconnectMessage = DisconnectFrame(Header())
-      ids.cancel *> protocol.send(disconnectMessage)
-    }
+  } yield (new Session[F] {
 
     override val messages: Stream[F, Message] = protocol.messages
 
@@ -102,5 +100,5 @@ object Session {
         } yield ()
       }
     }
-  }
+  }, tata(ids, protocol))
 }
