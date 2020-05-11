@@ -50,10 +50,10 @@ object Protocol {
     inFlightOutBound: AtomicMap[F, Int, Frame]): F[Protocol[F]] = {
 
     def inboundMessagesInterpreter(
-      messageQueue: Queue[F, Message],
-      frameQueue: Queue[F, Frame],
-      pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
-      connected: Deferred[F, Int]): Pipe[F, Frame, Unit] = {
+                                    messageQueue: Queue[F, Message],
+                                    frameQueue: Queue[F, Frame],
+                                    pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
+                                    connackReceived: Deferred[F, Int]): Pipe[F, Frame, Unit] = {
 
       def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] = s.pull.uncons1.flatMap {
         case Some((hd, tl)) => hd match {
@@ -114,7 +114,7 @@ object Protocol {
               loop(tl, inFlightInBound)
 
           case ConnackFrame(_: Header, returnCode) =>
-            Pull.eval(connected.complete(returnCode)) >>
+            Pull.eval(connackReceived.complete(returnCode)) >>
               loop(tl, inFlightInBound)
 
           case _ =>
@@ -141,7 +141,7 @@ object Protocol {
     }
 
     for {
-      connected <- Deferred[F, Int]
+      connackReceived <- Deferred[F, Int]
       messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
       frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
       stopSignal <- SignallingRef[F, Boolean](false)
@@ -154,12 +154,16 @@ object Protocol {
         .compile.drain.start
 
       inbound <- transport.inFrameStream
-        .through(inboundMessagesInterpreter(messageQueue, frameQueue, pendingResults, connected))
+        .through(inboundMessagesInterpreter(messageQueue, frameQueue, pendingResults, connackReceived))
         .onComplete(Stream.eval(stopSignal.set(true)))
         .compile.drain.start
 
+      _ <- transport.status.evalMap{
+        s => Concurrent[F].delay(println(s"${Console.BLUE}${if (s) "Connected" else "Disconnected"}${Console.RESET}"))
+      }.compile.drain.start
+
       _ <- frameQueue.enqueue1(connectFrame(sessionConfig))
-      r <- connected.get
+      r <- connackReceived.get
 
     } yield if (r == 0) new Protocol[F] {
 

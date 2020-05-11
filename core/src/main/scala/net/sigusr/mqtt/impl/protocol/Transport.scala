@@ -19,16 +19,16 @@ package net.sigusr.mqtt.impl.protocol
 import java.net.InetSocketAddress
 
 import cats.effect.implicits._
-import cats.effect.{ Blocker, Concurrent, ContextShift, Sync }
+import cats.effect.{Blocker, Concurrent, ContextShift, Sync}
 import cats.implicits._
 import enumeratum.values._
-import fs2.concurrent.Queue
+import fs2.concurrent.{Queue, SignallingRef}
 import fs2.io.tcp.SocketGroup
-import fs2.{ Pipe, Stream }
+import fs2.{Pipe, Stream}
 import net.sigusr.mqtt.impl.frames.Frame
-import net.sigusr.mqtt.impl.protocol.Transport.Direction.{ In, Out }
+import net.sigusr.mqtt.impl.protocol.Transport.Direction.{In, Out}
 import scodec.Codec
-import scodec.stream.{ StreamDecoder, StreamEncoder }
+import scodec.stream.{StreamDecoder, StreamEncoder}
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -45,6 +45,8 @@ trait Transport[F[_]] {
   def inFrameStream: Stream[F, Frame]
 
   def outFrameStream: Pipe[F, Frame, Unit]
+
+  def status: Stream[F, Boolean]
 
 }
 
@@ -67,6 +69,7 @@ object Transport {
 
   private def connect[F[_]: Concurrent: ContextShift](
     transportConfig: TransportConfig,
+    statusSignal: SignallingRef[F, Boolean],
     in: Queue[F, Frame],
     out: Queue[F, Frame]): F[Unit] = {
     Blocker[F].use { blocker =>
@@ -81,10 +84,13 @@ object Transport {
             .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
             .through(tracingPipe(In(transportConfig.traceMessages)))
             .through(in.enqueue).onComplete {
-              Stream.eval(Concurrent[F].delay(println("CCCCCCCCCCCCCCCCCCC")))
+              Stream.eval(statusSignal.set(false))
             }.compile.drain
 
-          Concurrent[F].race(inFiber, outFiber).map(_ => ())
+          for {
+            _ <- statusSignal.set(true)
+            _ <- Concurrent[F].race(inFiber, outFiber)
+          } yield ()
         }
       }
     }
@@ -94,12 +100,15 @@ object Transport {
     transportConfig: TransportConfig): F[Transport[F]] = for {
     in <- Queue.bounded[F, Frame](QUEUE_SIZE)
     out <- Queue.bounded[F, Frame](QUEUE_SIZE)
-    _ <- connect(transportConfig, in, out).start
+    statusSignal <- SignallingRef[F, Boolean](false)
+    _ <- connect(transportConfig, statusSignal, in, out).start
   } yield new Transport[F] {
 
     def outFrameStream: Pipe[F, Frame, Unit] = out.enqueue
 
     def inFrameStream: Stream[F, Frame] = in.dequeue
+
+    def status: Stream[F, Boolean] = statusSignal.discrete
 
   }
 }
