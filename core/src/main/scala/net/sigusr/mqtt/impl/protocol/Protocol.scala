@@ -18,16 +18,16 @@ package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.concurrent.Deferred
 import cats.effect.implicits._
-import cats.effect.{Concurrent, Timer}
+import cats.effect.{ Concurrent, Timer }
 import cats.implicits._
-import fs2.concurrent.{Queue, SignallingRef}
-import fs2.{INothing, Pipe, Pull, Stream}
+import fs2.concurrent.{ Queue, SignallingRef }
+import fs2.{ INothing, Pipe, Pull, Stream }
 import net.sigusr.mqtt.api.ConnectionFailureReason
-import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
-import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
+import net.sigusr.mqtt.api.Errors.{ ConnectionFailure, ProtocolError }
+import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
 import net.sigusr.mqtt.impl.frames._
 import Builders.connectFrame
-import net.sigusr.mqtt.impl.protocol.Result.{Empty, QoS}
+import net.sigusr.mqtt.impl.protocol.Result.{ Empty, QoS }
 import scodec.bits.ByteVector
 
 trait Protocol[F[_]] {
@@ -47,15 +47,13 @@ object Protocol {
   def apply[F[_]: Concurrent: Timer](
     sessionConfig: SessionConfig,
     transport: Transport[F],
-    inFlightOutBound: AtomicMap[F, Int, Frame]
-  ): F[Protocol[F]] = {
+    inFlightOutBound: AtomicMap[F, Int, Frame]): F[Protocol[F]] = {
 
     def inboundMessagesInterpreter(
       messageQueue: Queue[F, Message],
       frameQueue: Queue[F, Frame],
       pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
-      connected: Deferred[F, Int]
-    ): Pipe[F, Frame, Unit] = {
+      connected: Deferred[F, Int]): Pipe[F, Frame, Unit] = {
 
       def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] = s.pull.uncons1.flatMap {
         case Some((hd, tl)) => hd match {
@@ -130,8 +128,7 @@ object Protocol {
 
     def outboundMessagesInterpreter(
       inFlightOutBound: AtomicMap[F, Int, Frame],
-      pingTicker: Ticker[F]
-    ): Pipe[F, Frame, Frame] = {
+      pingTicker: Ticker[F]): Pipe[F, Frame, Frame] = {
       def loop(s: Stream[F, Frame]): Pull[F, Frame, Unit] = s.pull.uncons1.flatMap {
         case Some((hd, tl)) => (hd match {
           case PublishFrame(_: Header, _, messageIdentifier, _) =>

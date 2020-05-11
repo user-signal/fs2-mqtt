@@ -53,21 +53,19 @@ object Session {
 
   def apply[F[_]: Concurrent: Timer: ContextShift](
     transportConfig: TransportConfig,
-    sessionConfig: SessionConfig): Resource[F, Session[F]] = for {
-    transport <- Transport[F](transportConfig)
-    session <- Resource(fromTransport(transport, sessionConfig))
-  } yield session
+    sessionConfig: SessionConfig): Resource[F, Session[F]] = Resource(fromTransport(transportConfig, sessionConfig))
 
-  private def tata[F[_]: Concurrent](ids: IdGenerator[F], protocol: Protocol[F]) = {
+  private def disconnect[F[_]: Concurrent](ids: IdGenerator[F], protocol: Protocol[F]) = {
     val disconnectMessage = DisconnectFrame(Header())
     ids.cancel *> protocol.send(disconnectMessage)
   }
 
   private def fromTransport[F[_]: Concurrent: Timer: ContextShift](
-    transport: Transport[F],
+    transportConfig: TransportConfig,
     sessionConfig: SessionConfig): F[(Session[F], F[Unit])] = for {
     ids <- IdGenerator[F]
     inFlightOutBound <- AtomicMap[F, Int, Frame]
+    transport <- Transport[F](transportConfig)
     protocol <- Protocol(sessionConfig, transport, inFlightOutBound)
   } yield (new Session[F] {
 
@@ -100,5 +98,5 @@ object Session {
         } yield ()
       }
     }
-  }, tata(ids, protocol))
+  }, disconnect(ids, protocol))
 }
