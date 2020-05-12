@@ -183,7 +183,6 @@ object Protocol {
       inbound <-
         transport.inFrameStream
           .through(inboundMessagesInterpreter(messageQueue, frameQueue, pendingResults, connackReceived))
-          .onComplete(Stream.eval(stopSignal.set(true)))
           .compile
           .drain
           .start
@@ -203,7 +202,7 @@ object Protocol {
     } yield
       if (r == 0) new Protocol[F] {
 
-        override def cancel: F[Unit] = pingTicker.cancel *> outbound.cancel *> inbound.cancel
+        override def cancel: F[Unit] = stopSignal.set(true) *> pingTicker.cancel *> outbound.cancel *> inbound.cancel
 
         override def send: Frame => F[Unit] = frameQueue.enqueue1
 
