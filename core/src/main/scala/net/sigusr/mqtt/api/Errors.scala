@@ -41,11 +41,11 @@ object ConnectionFailureReason extends IntEnum[ConnectionFailureReason] {
   val values: IndexedSeq[ConnectionFailureReason] = findValues
 
   implicit val showPerson: Show[ConnectionFailureReason] = Show.show {
-    case ServerNotResponding => "Server not responding"
-    case BadProtocolVersion => "Bad protocol version"
-    case IdentifierRejected => "Identifier rejected"
-    case ServerUnavailable => "Server unavailable"
+    case ServerNotResponding   => "Server not responding"
+    case BadProtocolVersion    => "Bad protocol version"
+    case IdentifierRejected    => "Identifier rejected"
+    case ServerUnavailable     => "Server unavailable"
     case BadUserNameOrPassword => "Bad user name or password"
-    case NotAuthorized => "Not authorized"
+    case NotAuthorized         => "Not authorized"
   }
 }

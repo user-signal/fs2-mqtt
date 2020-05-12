@@ -33,12 +33,13 @@ import scodec.stream.{StreamDecoder, StreamEncoder}
 import scala.concurrent.duration.FiniteDuration
 
 sealed case class TransportConfig(
-  host: String,
-  port: Int,
-  readTimeout: Option[FiniteDuration] = None,
-  writeTimeout: Option[FiniteDuration] = None,
-  numReadBytes: Int = 4096,
-  traceMessages: Boolean = false)
+    host: String,
+    port: Int,
+    readTimeout: Option[FiniteDuration] = None,
+    writeTimeout: Option[FiniteDuration] = None,
+    numReadBytes: Int = 4096,
+    traceMessages: Boolean = false
+)
 
 trait Transport[F[_]] {
 
@@ -60,32 +61,43 @@ object Transport {
     val values: IndexedSeq[Direction] = findValues
   }
 
-  private def tracingPipe[F[_]: Concurrent: ContextShift](d: Direction): Pipe[F, Frame, Frame] = frames => for {
-    frame <- frames
-    _ <- Stream.eval(Sync[F]
-      .delay(println(s" ${d.value} ${d.color}$frame${Console.RESET}"))
-      .whenA(d.active))
-  } yield frame
+  private def tracingPipe[F[_]: Concurrent: ContextShift](d: Direction): Pipe[F, Frame, Frame] =
+    frames =>
+      for {
+        frame <- frames
+        _ <- Stream.eval(
+          Sync[F]
+            .delay(println(s" ${d.value} ${d.color}$frame${Console.RESET}"))
+            .whenA(d.active)
+        )
+      } yield frame
 
   private def connect[F[_]: Concurrent: ContextShift](
-    transportConfig: TransportConfig,
-    statusSignal: SignallingRef[F, Boolean],
-    in: Queue[F, Frame],
-    out: Queue[F, Frame]): F[Unit] = {
+      transportConfig: TransportConfig,
+      statusSignal: SignallingRef[F, Boolean],
+      in: Queue[F, Frame],
+      out: Queue[F, Frame]
+  ): F[Unit] =
     Blocker[F].use { blocker =>
       SocketGroup[F](blocker).use { socketGroup =>
         socketGroup.client[F](new InetSocketAddress(transportConfig.host, transportConfig.port)).use { socket =>
           val outFiber = out.dequeue
             .through(tracingPipe(Out(transportConfig.traceMessages)))
             .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
-            .through(socket.writes(transportConfig.writeTimeout)).compile.drain
+            .through(socket.writes(transportConfig.writeTimeout))
+            .compile
+            .drain
 
-          val inFiber = socket.reads(transportConfig.numReadBytes, transportConfig.readTimeout)
+          val inFiber = socket
+            .reads(transportConfig.numReadBytes, transportConfig.readTimeout)
             .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
             .through(tracingPipe(In(transportConfig.traceMessages)))
-            .through(in.enqueue).onComplete {
+            .through(in.enqueue)
+            .onComplete {
               Stream.eval(statusSignal.set(false))
-            }.compile.drain
+            }
+            .compile
+            .drain
 
           for {
             _ <- statusSignal.set(true)
@@ -94,21 +106,20 @@ object Transport {
         }
       }
     }
-  }
 
-  def apply[F[_]: Concurrent: ContextShift](
-    transportConfig: TransportConfig): F[Transport[F]] = for {
-    in <- Queue.bounded[F, Frame](QUEUE_SIZE)
-    out <- Queue.bounded[F, Frame](QUEUE_SIZE)
-    statusSignal <- SignallingRef[F, Boolean](false)
-    _ <- connect(transportConfig, statusSignal, in, out).start
-  } yield new Transport[F] {
+  def apply[F[_]: Concurrent: ContextShift](transportConfig: TransportConfig): F[Transport[F]] =
+    for {
+      in <- Queue.bounded[F, Frame](QUEUE_SIZE)
+      out <- Queue.bounded[F, Frame](QUEUE_SIZE)
+      statusSignal <- SignallingRef[F, Boolean](false)
+      _ <- connect(transportConfig, statusSignal, in, out).start
+    } yield new Transport[F] {
 
-    def outFrameStream: Pipe[F, Frame, Unit] = out.enqueue
+      def outFrameStream: Pipe[F, Frame, Unit] = out.enqueue
 
-    def inFrameStream: Stream[F, Frame] = in.dequeue
+      def inFrameStream: Stream[F, Frame] = in.dequeue
 
-    def status: Stream[F, Boolean] = statusSignal.discrete
+      def status: Stream[F, Boolean] = statusSignal.discrete
 
-  }
+    }
 }

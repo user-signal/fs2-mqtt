@@ -16,7 +16,7 @@
 
 package net.sigusr.mqtt.impl.protocol
 
-import cats.effect.{ Concurrent, ContextShift, Resource, Timer }
+import cats.effect.{Concurrent, ContextShift, Resource, Timer}
 import cats.implicits._
 import fs2.Stream
 import net.sigusr.mqtt.api.Errors.ProtocolError
@@ -30,12 +30,13 @@ sealed case class Will(retain: Boolean, qos: QualityOfService, topic: String, me
 sealed case class Message(topic: String, payload: Vector[Byte])
 
 sealed case class SessionConfig(
-  clientId: String,
-  keepAlive: Int = DEFAULT_KEEP_ALIVE,
-  cleanSession: Boolean = true,
-  will: Option[Will] = None,
-  user: Option[String] = None,
-  password: Option[String] = None)
+    clientId: String,
+    keepAlive: Int = DEFAULT_KEEP_ALIVE,
+    cleanSession: Boolean = true,
+    will: Option[Will] = None,
+    user: Option[String] = None,
+    password: Option[String] = None
+)
 
 trait Session[F[_]] {
 
@@ -45,15 +46,21 @@ trait Session[F[_]] {
 
   def unsubscribe(topics: Vector[String]): F[Unit]
 
-  def publish(topic: String, payload: Vector[Byte], qos: QualityOfService = AtMostOnce, retain: Boolean = false): F[Unit]
+  def publish(
+      topic: String,
+      payload: Vector[Byte],
+      qos: QualityOfService = AtMostOnce,
+      retain: Boolean = false
+  ): F[Unit]
 
 }
 
 object Session {
 
   def apply[F[_]: Concurrent: Timer: ContextShift](
-    transportConfig: TransportConfig,
-    sessionConfig: SessionConfig): Resource[F, Session[F]] = Resource(fromTransport(transportConfig, sessionConfig))
+      transportConfig: TransportConfig,
+      sessionConfig: SessionConfig
+  ): Resource[F, Session[F]] = Resource(fromTransport(transportConfig, sessionConfig))
 
   private def disconnect[F[_]: Concurrent](ids: IdGenerator[F], protocol: Protocol[F]) = {
     val disconnectMessage = DisconnectFrame(Header())
@@ -61,42 +68,45 @@ object Session {
   }
 
   private def fromTransport[F[_]: Concurrent: Timer: ContextShift](
-    transportConfig: TransportConfig,
-    sessionConfig: SessionConfig): F[(Session[F], F[Unit])] = for {
-    ids <- IdGenerator[F]
-    inFlightOutBound <- AtomicMap[F, Int, Frame]
-    transport <- Transport[F](transportConfig)
-    protocol <- Protocol(sessionConfig, transport, inFlightOutBound)
-  } yield (new Session[F] {
+      transportConfig: TransportConfig,
+      sessionConfig: SessionConfig
+  ): F[(Session[F], F[Unit])] =
+    for {
+      ids <- IdGenerator[F]
+      inFlightOutBound <- AtomicMap[F, Int, Frame]
+      transport <- Transport[F](transportConfig)
+      protocol <- Protocol(sessionConfig, transport, inFlightOutBound)
+    } yield (
+      new Session[F] {
 
-    override val messages: Stream[F, Message] = protocol.messages
+        override val messages: Stream[F, Message] = protocol.messages
 
-    override def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]] = {
-      for {
-        messageId <- ids.next
-        v <- protocol.sendReceive(subscribeFrame(messageId, topics), messageId)
-      } yield v match {
-        case QoS(t) => topics.zip(t).map(p => (p._1._1, QualityOfService.withValue(p._2)))
-        case _ => throw ProtocolError
-      }
-    }
+        override def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]] =
+          for {
+            messageId <- ids.next
+            v <- protocol.sendReceive(subscribeFrame(messageId, topics), messageId)
+          } yield v match {
+            case QoS(t) => topics.zip(t).map(p => (p._1._1, QualityOfService.withValue(p._2)))
+            case _      => throw ProtocolError
+          }
 
-    override def unsubscribe(topics: Vector[String]): F[Unit] = {
-      for {
-        messageId <- ids.next
-        _ <- protocol.sendReceive(unsubscribeFrame(messageId, topics), messageId)
-      } yield ()
-    }
+        override def unsubscribe(topics: Vector[String]): F[Unit] =
+          for {
+            messageId <- ids.next
+            _ <- protocol.sendReceive(unsubscribeFrame(messageId, topics), messageId)
+          } yield ()
 
-    override def publish(topic: String, payload: Vector[Byte], qos: QualityOfService, retain: Boolean): F[Unit] = {
-      qos match {
-        case QualityOfService.AtMostOnce =>
-          protocol.send(publishFrame(topic, None, payload, qos, retain))
-        case QualityOfService.AtLeastOnce | QualityOfService.ExactlyOnce => for {
-          messageId <- ids.next
-          _ <- protocol.sendReceive(publishFrame(topic, Some(messageId), payload, qos, retain), messageId)
-        } yield ()
-      }
-    }
-  }, disconnect(ids, protocol))
+        override def publish(topic: String, payload: Vector[Byte], qos: QualityOfService, retain: Boolean): F[Unit] =
+          qos match {
+            case QualityOfService.AtMostOnce =>
+              protocol.send(publishFrame(topic, None, payload, qos, retain))
+            case QualityOfService.AtLeastOnce | QualityOfService.ExactlyOnce =>
+              for {
+                messageId <- ids.next
+                _ <- protocol.sendReceive(publishFrame(topic, Some(messageId), payload, qos, retain), messageId)
+              } yield ()
+          }
+      },
+      disconnect(ids, protocol)
+    )
 }

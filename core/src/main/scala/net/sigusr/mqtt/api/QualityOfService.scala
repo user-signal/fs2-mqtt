@@ -29,7 +29,7 @@ object QualityOfService extends IntEnum[QualityOfService] {
   val values: IndexedSeq[QualityOfService] = findValues
 
   implicit val showPerson: Show[QualityOfService] = Show.show {
-    case AtMostOnce => "at most once"
+    case AtMostOnce  => "at most once"
     case AtLeastOnce => "at least once"
     case ExactlyOnce => "exactly once"
   }

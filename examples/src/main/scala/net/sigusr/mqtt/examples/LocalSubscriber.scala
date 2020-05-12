@@ -23,12 +23,12 @@ import fs2.Stream
 import fs2.concurrent.SignallingRef
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.QualityOfService
-import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce, ExactlyOnce }
-import net.sigusr.mqtt.impl.protocol.{ Message, Session, SessionConfig, TransportConfig }
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
+import net.sigusr.mqtt.impl.protocol.{Message, Session, SessionConfig, TransportConfig}
 import zio.duration.Duration
 import zio.interop.catz._
 import zio.interop.catz.implicits._
-import zio.{ App, Task, ZEnv, ZIO }
+import zio.{App, Task, ZEnv, ZIO}
 
 import scala.concurrent.duration._
 object LocalSubscriber extends App {
@@ -41,21 +41,26 @@ object LocalSubscriber extends App {
     (stopTopic, ExactlyOnce),
     ("AtMostOnce", AtMostOnce),
     ("AtLeastOnce", AtLeastOnce),
-    ("ExactlyOnce", ExactlyOnce))
+    ("ExactlyOnce", ExactlyOnce)
+  )
 
   private val unsubscribedTopics: Vector[String] = Vector("AtMostOnce", "AtLeastOnce", "ExactlyOnce")
 
   private def putStrLn(s: String): Task[Unit] = Task.effectTotal(println(s))
 
   override def run(args: List[String]): ZIO[ZEnv, Nothing, Int] = {
-    val transportConfig = TransportConfig("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true)
+    val transportConfig =
+      TransportConfig("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true)
     val sessionConfig = SessionConfig(s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo"))
     Session[Task](transportConfig, sessionConfig).use { session =>
       SignallingRef[Task, Boolean](false).flatMap { stopSignal =>
         val subscriber = for {
           s <- session.subscribe(subscribedTopics)
           _ <- s.traverse { p =>
-            putStrLn(s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS ${Console.CYAN}${p._2.show}${Console.RESET}")
+            putStrLn(
+              s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS " +
+                s"${Console.CYAN}${p._2.show}${Console.RESET}"
+            )
           }
           _ <- ZIO.sleep(Duration(23, TimeUnit.SECONDS))
           _ <- session.unsubscribe(unsubscribedTopics)
@@ -69,14 +74,20 @@ object LocalSubscriber extends App {
       }
     }
   }.tapError {
-    case ConnectionFailure(reason) =>
-      putStrLn(s"Connection failure: ${Console.RED}${reason.show}${Console.RESET}")
-  }.fold(_ => Error, _ => Success)
+      case ConnectionFailure(reason) =>
+        putStrLn(s"Connection failure: ${Console.RED}${reason.show}${Console.RESET}")
+    }
+    .fold(_ => Error, _ => Success)
 
-  private def processMessages(stopSignal: SignallingRef[Task, Boolean])(message: Message): Stream[Task, Unit] = message match {
-    case Message(LocalSubscriber.stopTopic, _) => Stream.eval_(stopSignal.set(true))
-    case Message(topic, payload) => Stream.eval(Task {
-      println(s"Topic ${Console.CYAN}$topic${Console.RESET}: ${Console.BOLD}${new String(payload.toArray, "UTF-8")}${Console.RESET}")
-    })
-  }
+  private def processMessages(stopSignal: SignallingRef[Task, Boolean])(message: Message): Stream[Task, Unit] =
+    message match {
+      case Message(LocalSubscriber.stopTopic, _) => Stream.eval_(stopSignal.set(true))
+      case Message(topic, payload) =>
+        Stream.eval(Task {
+          println(
+            s"Topic ${Console.CYAN}$topic${Console.RESET}: " +
+              s"${Console.BOLD}${new String(payload.toArray, "UTF-8")}${Console.RESET}"
+          )
+        })
+    }
 }

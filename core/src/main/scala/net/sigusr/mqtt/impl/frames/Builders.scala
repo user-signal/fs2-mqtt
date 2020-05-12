@@ -17,19 +17,21 @@
 package net.sigusr.mqtt.impl.frames
 
 import net.sigusr.mqtt.api.QualityOfService
-import net.sigusr.mqtt.api.QualityOfService.{ AtLeastOnce, AtMostOnce }
+import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce}
 import net.sigusr.mqtt.impl.protocol.SessionConfig
 import scodec.bits.ByteVector
 
 object Builders {
 
-  def subscribeFrame(messageId: Int, topics: Vector[(String, QualityOfService)]): SubscribeFrame = {
-    SubscribeFrame(Header(qos = AtLeastOnce.value), messageId, topics.map((v: (String, QualityOfService)) => (v._1, v._2.value)))
-  }
+  def subscribeFrame(messageId: Int, topics: Vector[(String, QualityOfService)]): SubscribeFrame =
+    SubscribeFrame(
+      Header(qos = AtLeastOnce.value),
+      messageId,
+      topics.map((v: (String, QualityOfService)) => (v._1, v._2.value))
+    )
 
-  def unsubscribeFrame(messageId: Int, topics: Vector[String]): UnsubscribeFrame = {
+  def unsubscribeFrame(messageId: Int, topics: Vector[String]): UnsubscribeFrame =
     UnsubscribeFrame(Header(qos = AtLeastOnce.value), messageId, topics)
-  }
 
   def connectFrame(config: SessionConfig): ConnectFrame = {
     val header = Header(qos = AtMostOnce.value)
@@ -45,11 +47,18 @@ object Builders {
         qos,
         willFlag = config.will.isDefined,
         config.cleanSession,
-        config.keepAlive)
+        config.keepAlive
+      )
     ConnectFrame(header, variableHeader, config.clientId, topic, message, config.user, config.password)
   }
 
-  def publishFrame(topic: String, messageId: Option[Int], payload: Vector[Byte], qos: QualityOfService, retain: Boolean): PublishFrame = {
+  def publishFrame(
+      topic: String,
+      messageId: Option[Int],
+      payload: Vector[Byte],
+      qos: QualityOfService,
+      retain: Boolean
+  ): PublishFrame = {
     val header = Header(dup = false, qos.value, retain = retain)
     PublishFrame(header, topic, messageId, ByteVector(payload))
   }

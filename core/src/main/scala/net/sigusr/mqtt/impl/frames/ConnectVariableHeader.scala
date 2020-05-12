@@ -17,34 +17,34 @@
 package net.sigusr.mqtt.impl.frames
 
 import scodec.Codec
-import scodec.bits.{ BitVector, _ }
+import scodec.bits.{BitVector, _}
 import scodec.codecs._
 
 case class ConnectVariableHeader(
-  userNameFlag: Boolean,
-  passwordFlag: Boolean,
-  willRetain: Boolean,
-  willQoS: Int,
-  willFlag: Boolean,
-  cleanSession: Boolean,
-  keepAliveTimer: Int) {
-}
+    userNameFlag: Boolean,
+    passwordFlag: Boolean,
+    willRetain: Boolean,
+    willQoS: Int,
+    willFlag: Boolean,
+    cleanSession: Boolean,
+    keepAliveTimer: Int
+) {}
 
 object ConnectVariableHeader {
 
   /**
-   * This is the, once for all encoded, protocol name [MQIsdp] and protocol version [3]
-   */
+    * This is the, once for all encoded, protocol name [MQIsdp] and protocol version [3]
+    */
   val connectVariableHeaderFixedBytes: BitVector = BitVector(hex"00064D514973647003")
 
-  implicit val connectVariableHeaderCodec: Codec[ConnectVariableHeader] = (
-    constant(connectVariableHeaderFixedBytes) :~>:
-    bool ::
-    bool ::
-    bool ::
-    qosCodec ::
-    bool ::
-    bool ::
-    ignore(1) :~>:
-    keepAliveCodec).as[ConnectVariableHeader]
+  implicit val connectVariableHeaderCodec: Codec[ConnectVariableHeader] =
+    (constant(connectVariableHeaderFixedBytes) :~>:
+      bool ::
+      bool ::
+      bool ::
+      qosCodec ::
+      bool ::
+      bool ::
+      ignore(1) :~>:
+      keepAliveCodec).as[ConnectVariableHeader]
 }
