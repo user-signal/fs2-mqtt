@@ -68,25 +68,28 @@ object Protocol {
                     Pull.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
                       loop(tl, inFlightInBound)
                   case (AtLeastOnce.value, Some(id)) =>
-                    Pull.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
-                      Pull.eval(frameQueue.enqueue1(PubackFrame(Header(), id))) >>
+                    Pull.eval(
+                      messageQueue.enqueue1(Message(topic, payload.toArray.toVector)) >> frameQueue
+                        .enqueue1(PubackFrame(Header(), id))
+                    ) >>
                       loop(tl, inFlightInBound)
                   case (ExactlyOnce.value, Some(id)) =>
-                    if (inFlightInBound.contains(id))
-                      Pull.eval(frameQueue.enqueue1(PubrecFrame(Header(), id)))
-                    else
-                      Pull.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
-                        Pull.eval(frameQueue.enqueue1(PubrecFrame(Header(), id))) >>
-                        loop(tl, inFlightInBound + id)
+                    Pull.eval(
+                      if (inFlightInBound.contains(id))
+                        frameQueue.enqueue1(PubrecFrame(Header(), id))
+                      else
+                        messageQueue.enqueue1(Message(topic, payload.toArray.toVector)) >> frameQueue
+                          .enqueue1(PubrecFrame(Header(), id))
+                    ) >>
+                      loop(tl, inFlightInBound + id)
                   case (_, _) => Pull.raiseError[F](ProtocolError)
                 }
 
               case PubackFrame(_: Header, messageIdentifier) =>
-                Pull.eval(inFlightOutBound.remove(messageIdentifier)) >>
-                  Pull.eval(
-                    pendingResults.remove(messageIdentifier) >>=
-                      (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))
-                  ) >>
+                Pull.eval(
+                  inFlightOutBound.remove(messageIdentifier) >> pendingResults.remove(messageIdentifier) >>=
+                    (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))
+                ) >>
                   loop(tl, inFlightInBound)
 
               case PubrelFrame(header, messageIdentifier) =>
@@ -94,17 +97,17 @@ object Protocol {
                   loop(tl, inFlightInBound - messageIdentifier)
 
               case PubcompFrame(_, messageIdentifier) =>
-                Pull.eval(inFlightOutBound.remove(messageIdentifier)) >>
-                  Pull.eval(
-                    pendingResults.remove(messageIdentifier) >>=
-                      (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))
-                  ) >>
+                Pull.eval(
+                  inFlightOutBound.remove(messageIdentifier) >> pendingResults.remove(messageIdentifier) >>=
+                    (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))
+                ) >>
                   loop(tl, inFlightInBound)
 
               case PubrecFrame(header, messageIdentifier) =>
                 val pubrelFrame = PubrelFrame(header.copy(qos = 1), messageIdentifier)
-                Pull.eval(inFlightOutBound.update(messageIdentifier, pubrelFrame)) >>
-                  Pull.eval(frameQueue.enqueue1(pubrelFrame)) >>
+                Pull.eval(
+                  inFlightOutBound.update(messageIdentifier, pubrelFrame) >> frameQueue.enqueue1(pubrelFrame)
+                ) >>
                   loop(tl, inFlightInBound)
 
               case PingRespFrame(_: Header) =>
@@ -115,14 +118,14 @@ object Protocol {
 
               case UnsubackFrame(_: Header, messageIdentifier) =>
                 Pull.eval(
-                  pendingResults.remove(messageIdentifier) >>=
+                  inFlightOutBound.remove(messageIdentifier) >> pendingResults.remove(messageIdentifier) >>=
                     (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))
                 ) >>
                   loop(tl, inFlightInBound)
 
               case SubackFrame(_: Header, messageIdentifier, topics) =>
                 Pull.eval(
-                  pendingResults.remove(messageIdentifier) >>=
+                  inFlightOutBound.remove(messageIdentifier) >> pendingResults.remove(messageIdentifier) >>=
                     (_.fold(Concurrent[F].pure(()))(_.complete(QoS(topics))))
                 ) >>
                   loop(tl, inFlightInBound)
@@ -150,6 +153,10 @@ object Protocol {
             (hd match {
               case PublishFrame(_: Header, _, messageIdentifier, _) =>
                 Pull.eval(messageIdentifier.fold(Concurrent[F].pure[Unit](()))(inFlightOutBound.update(_, hd)))
+              case SubscribeFrame(_: Header, messageIdentifier, _) =>
+                Pull.eval(inFlightOutBound.update(messageIdentifier, hd))
+              case UnsubscribeFrame(_: Header, messageIdentifier, _) =>
+                Pull.eval(inFlightOutBound.update(messageIdentifier, hd))
               case _ => Pull.eval(Concurrent[F].pure[Unit](()))
             }) >> Pull.output1(hd) >> Pull.eval(pingTicker.reset) >> loop(tl)
           case None => Pull.done
