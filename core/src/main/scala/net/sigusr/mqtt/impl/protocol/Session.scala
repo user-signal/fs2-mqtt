@@ -73,9 +73,8 @@ object Session {
   ): F[(Session[F], F[Unit])] =
     for {
       ids <- IdGenerator[F]
-      inFlightOutBound <- AtomicMap[F, Int, Frame]
       transport <- Transport[F](transportConfig)
-      protocol <- Protocol(sessionConfig, transport, inFlightOutBound)
+      protocol <- Protocol(sessionConfig, transport)
     } yield (
       new Session[F] {
 

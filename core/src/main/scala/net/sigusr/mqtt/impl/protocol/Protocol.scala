@@ -25,8 +25,8 @@ import fs2.{INothing, Pipe, Pull, Stream}
 import net.sigusr.mqtt.api.ConnectionFailureReason
 import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
+import net.sigusr.mqtt.impl.frames.Builders.connectFrame
 import net.sigusr.mqtt.impl.frames._
-import Builders.connectFrame
 import net.sigusr.mqtt.impl.protocol.Result.{Empty, QoS}
 import scodec.bits.ByteVector
 
@@ -46,13 +46,13 @@ object Protocol {
 
   def apply[F[_]: Concurrent: Timer](
       sessionConfig: SessionConfig,
-      transport: Transport[F],
-      inFlightOutBound: AtomicMap[F, Int, Frame]
+      transport: Transport[F]
   ): F[Protocol[F]] = {
 
     def inboundMessagesInterpreter(
         messageQueue: Queue[F, Message],
         frameQueue: Queue[F, Frame],
+        inFlightOutBound: AtomicMap[F, Int, Frame],
         pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
         connackReceived: Deferred[F, Int]
     ): Pipe[F, Frame, Unit] = {
@@ -170,6 +170,7 @@ object Protocol {
       frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
       stopSignal <- SignallingRef[F, Boolean](false)
       pingTicker <- Ticker(sessionConfig.keepAlive.toLong, frameQueue.enqueue1(PingReqFrame(Header())))
+      inFlightOutBound <- AtomicMap[F, Int, Frame]
       pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
 
       outbound <-
@@ -182,7 +183,9 @@ object Protocol {
 
       inbound <-
         transport.inFrameStream
-          .through(inboundMessagesInterpreter(messageQueue, frameQueue, pendingResults, connackReceived))
+          .through(
+            inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults, connackReceived)
+          )
           .compile
           .drain
           .start
