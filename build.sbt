@@ -44,7 +44,8 @@ lazy val core = project
         "co.fs2" %% "fs2-core" % "2.3.0",
         "co.fs2" %% "fs2-io" % "2.3.0",
         "org.typelevel" %% "cats-core" % "2.1.1",
-        "org.typelevel" %% "cats-effect" % "2.1.3"
+        "org.typelevel" %% "cats-effect" % "2.1.3",
+        "com.github.cb372" %% "cats-retry" % "1.1.0"
       )
     )
   )

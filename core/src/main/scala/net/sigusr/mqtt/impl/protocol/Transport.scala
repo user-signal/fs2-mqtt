@@ -19,7 +19,7 @@ package net.sigusr.mqtt.impl.protocol
 import java.net.InetSocketAddress
 
 import cats.effect.implicits._
-import cats.effect.{Blocker, Concurrent, ContextShift, Sync}
+import cats.effect.{Blocker, Concurrent, ContextShift}
 import cats.implicits._
 import enumeratum.values._
 import fs2.concurrent.{Queue, SignallingRef}
@@ -65,11 +65,7 @@ object Transport {
     frames =>
       for {
         frame <- frames
-        _ <- Stream.eval(
-          Sync[F]
-            .delay(println(s" ${d.value} ${d.color}$frame${Console.RESET}"))
-            .whenA(d.active)
-        )
+        _ <- Stream.eval(putStrLn(s" ${d.value} ${d.color}$frame${Console.RESET}")).whenA(d.active)
       } yield frame
 
   private def connect[F[_]: Concurrent: ContextShift](

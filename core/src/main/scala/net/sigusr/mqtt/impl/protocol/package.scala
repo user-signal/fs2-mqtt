@@ -16,9 +16,13 @@
 
 package net.sigusr.mqtt.impl
 
+import cats.effect.Sync
+
 package object protocol {
 
   val DEFAULT_KEEP_ALIVE: Int = 30
   val QUEUE_SIZE = 128
+
+  def putStrLn[F[_]: Sync](s: String): F[Unit] = Sync[F].delay(println(s))
 
 }

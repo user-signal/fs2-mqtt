@@ -111,9 +111,7 @@ object Protocol {
                   loop(tl, inFlightInBound)
 
               case PingRespFrame(_: Header) =>
-                Pull.eval(
-                  Concurrent[F].delay(println(s" ${Console.CYAN}Todo: Handle ping responses${Console.RESET}"))
-                ) >>
+                Pull.eval(putStrLn(s" ${Console.CYAN}Todo: Handle ping responses${Console.RESET}")) >>
                   loop(tl, inFlightInBound)
 
               case UnsubackFrame(_: Header, messageIdentifier) =>
@@ -193,7 +191,7 @@ object Protocol {
       _ <-
         transport.status
           .evalMap { s =>
-            Concurrent[F].delay(println(s"${Console.BLUE}${if (s) "Connected" else "Disconnected"}${Console.RESET}"))
+            putStrLn(s"${Console.BLUE}${if (s) "Connected" else "Disconnected"}${Console.RESET}")
           }
           .compile
           .drain
