@@ -18,8 +18,9 @@ package net.sigusr.mqtt.impl.protocol
 
 import java.net.InetSocketAddress
 
+import cats.Show
 import cats.effect.implicits._
-import cats.effect.{Blocker, Concurrent, ContextShift}
+import cats.effect.{Blocker, Concurrent, ContextShift, Timer}
 import cats.implicits._
 import enumeratum.values._
 import fs2.concurrent.{Queue, SignallingRef}
@@ -27,10 +28,13 @@ import fs2.io.tcp.SocketGroup
 import fs2.{Pipe, Stream}
 import net.sigusr.mqtt.impl.frames.Frame
 import net.sigusr.mqtt.impl.protocol.Transport.Direction.{In, Out}
+import net.sigusr.mqtt.impl.protocol.TransportStatus.{Connected, Connecting, Disconnected, Error}
+import retry.RetryDetails.{GivingUp, WillDelayAndRetry}
+import retry._
 import scodec.Codec
 import scodec.stream.{StreamDecoder, StreamEncoder}
 
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 
 sealed case class TransportConfig(
     host: String,
@@ -38,8 +42,25 @@ sealed case class TransportConfig(
     readTimeout: Option[FiniteDuration] = None,
     writeTimeout: Option[FiniteDuration] = None,
     numReadBytes: Int = 4096,
+    maxRetries: Int = 5,
+    baseDelay: FiniteDuration = 2.seconds,
     traceMessages: Boolean = false
 )
+
+sealed trait TransportStatus
+object TransportStatus {
+  case object Disconnected extends TransportStatus
+  case class Connecting(nextDelay: FiniteDuration, retriesSoFar: Int) extends TransportStatus
+  case object Connected extends TransportStatus
+  case class Error(totalRetries: Int, err: Throwable) extends TransportStatus
+
+  implicit val showTransportStatus: Show[TransportStatus] = Show.show {
+    case Disconnected     => "Disconnected"
+    case Connecting(_, _) => s"Connecting"
+    case Connected        => "Connected"
+    case Error(_, _)      => "Error"
+  }
+}
 
 trait Transport[F[_]] {
 
@@ -47,7 +68,7 @@ trait Transport[F[_]] {
 
   def outFrameStream: Pipe[F, Frame, Unit]
 
-  def status: Stream[F, Boolean]
+  def status: Stream[F, TransportStatus]
 
 }
 
@@ -68,9 +89,20 @@ object Transport {
         _ <- Stream.eval(putStrLn(s" ${d.value} ${d.color}$frame${Console.RESET}")).whenA(d.active)
       } yield frame
 
+  private def publishError[F[_]: Concurrent](
+      statusSignal: SignallingRef[F, TransportStatus]
+  )(err: Throwable, details: RetryDetails): F[Unit] =
+    details match {
+      case WillDelayAndRetry(nextDelay: FiniteDuration, retriesSoFar: Int, _) =>
+        statusSignal.set(Connecting(nextDelay, retriesSoFar))
+
+      case GivingUp(totalRetries: Int, _) =>
+        statusSignal.set(Error(totalRetries, err))
+    }
+
   private def connect[F[_]: Concurrent: ContextShift](
       transportConfig: TransportConfig,
-      statusSignal: SignallingRef[F, Boolean],
+      statusSignal: SignallingRef[F, TransportStatus],
       in: Queue[F, Frame],
       out: Queue[F, Frame]
   ): F[Unit] =
@@ -81,6 +113,9 @@ object Transport {
             .through(tracingPipe(Out(transportConfig.traceMessages)))
             .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
             .through(socket.writes(transportConfig.writeTimeout))
+            .onComplete {
+              Stream.eval(statusSignal.set(Disconnected))
+            }
             .compile
             .drain
 
@@ -90,32 +125,39 @@ object Transport {
             .through(tracingPipe(In(transportConfig.traceMessages)))
             .through(in.enqueue)
             .onComplete {
-              Stream.eval(statusSignal.set(false))
+              Stream.eval(statusSignal.set(Disconnected))
             }
             .compile
             .drain
 
           for {
-            _ <- statusSignal.set(true)
+            _ <- statusSignal.set(Connected)
             _ <- Concurrent[F].race(inFiber, outFiber)
           } yield ()
         }
       }
     }
 
-  def apply[F[_]: Concurrent: ContextShift](transportConfig: TransportConfig): F[Transport[F]] =
+  def apply[F[_]: Concurrent: ContextShift: Timer](transportConfig: TransportConfig): F[Transport[F]] = {
+
+    val policy = RetryPolicies
+      .limitRetries[F](transportConfig.maxRetries)
+      .join(RetryPolicies.fibonacciBackoff(transportConfig.baseDelay))
     for {
       in <- Queue.bounded[F, Frame](QUEUE_SIZE)
       out <- Queue.bounded[F, Frame](QUEUE_SIZE)
-      statusSignal <- SignallingRef[F, Boolean](false)
-      _ <- connect(transportConfig, statusSignal, in, out).start
+      statusSignal <- SignallingRef[F, TransportStatus](Disconnected)
+      _ <- retryingOnAllErrors[Unit](policy, publishError[F](statusSignal))(
+        connect(transportConfig, statusSignal, in, out)
+      ).start
     } yield new Transport[F] {
 
       def outFrameStream: Pipe[F, Frame, Unit] = out.enqueue
 
       def inFrameStream: Stream[F, Frame] = in.dequeue
 
-      def status: Stream[F, Boolean] = statusSignal.discrete
+      def status: Stream[F, TransportStatus] = statusSignal.discrete
 
     }
+  }
 }

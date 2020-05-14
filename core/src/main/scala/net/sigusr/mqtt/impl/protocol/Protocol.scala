@@ -188,15 +188,6 @@ object Protocol {
           .drain
           .start
 
-      _ <-
-        transport.status
-          .evalMap { s =>
-            putStrLn(s"${Console.BLUE}${if (s) "Connected" else "Disconnected"}${Console.RESET}")
-          }
-          .compile
-          .drain
-          .start
-
       _ <- frameQueue.enqueue1(connectFrame(sessionConfig))
       r <- connackReceived.get
 
