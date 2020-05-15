@@ -16,9 +16,41 @@
 
 package net.sigusr.mqtt
 
+import cats.effect.Sync
+import cats.implicits._
+import net.sigusr.mqtt.api.ConnectionStatus
+import net.sigusr.mqtt.api.ConnectionStatus.{Connected, Connecting, Disconnected, Error, SessionStarted}
+import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
+
 package object examples {
   val localSubscriber: String = "Local-Subscriber"
   val localPublisher: String = "Local-Publisher"
 
   val payload: String => Vector[Byte] = (_: String).getBytes("UTF-8").toVector
+
+  def putStrLn[F[_]: Sync](s: String): F[Unit] = Sync[F].delay(println(s))
+
+  def logSessionStatus[F[_]: Sync]: ConnectionStatus => F[ConnectionStatus] =
+    s =>
+      (s match {
+        case Error(ConnectionFailure(reason)) =>
+          putStrLn(s"${Console.RED}${reason.show}${Console.RESET}")
+        case Error(ProtocolError) =>
+          putStrLn(s"${Console.RED}Ṕrotocol error${Console.RESET}")
+        case Disconnected =>
+          putStrLn(s"${Console.BLUE}Transport disconnected${Console.RESET}")
+        case Connecting(nextDelay, retriesSoFar) =>
+          putStrLn(
+            s"${Console.BLUE}Transport connecting. $retriesSoFar attempt(s) so far, next attempt in $nextDelay ${Console.RESET}"
+          )
+        case Connected =>
+          putStrLn(s"${Console.BLUE}Transport connected${Console.RESET}")
+        case SessionStarted =>
+          putStrLn(s"${Console.BLUE}Session started${Console.RESET}")
+      }) >> Sync[F].pure(s)
+
+  def onSessionError[F[_]: Sync]: ConnectionStatus => F[Unit] = {
+    case Error(e) => Sync[F].raiseError(e)
+    case _        => Sync[F].pure(())
+  }
 }

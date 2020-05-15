@@ -21,7 +21,6 @@ import java.util.concurrent.TimeUnit
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
-import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.QualityOfService
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.impl.protocol.{Message, Session, SessionConfig, TransportConfig}
@@ -46,48 +45,47 @@ object LocalSubscriber extends App {
 
   private val unsubscribedTopics: Vector[String] = Vector("AtMostOnce", "AtLeastOnce", "ExactlyOnce")
 
-  private def putStrLn(s: String): Task[Unit] = Task.effectTotal(println(s))
-
   override def run(args: List[String]): ZIO[ZEnv, Nothing, Int] = {
     val transportConfig =
       TransportConfig("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true)
     val sessionConfig = SessionConfig(s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo"))
     Session[Task](transportConfig, sessionConfig).use { session =>
       SignallingRef[Task, Boolean](false).flatMap { stopSignal =>
+        val sessionStatus = session.state.discrete
+          .evalMap(logSessionStatus[Task])
+          .evalMap(onSessionError[Task])
+          .interruptWhen(stopSignal)
+          .compile
+          .drain
         val subscriber = for {
           s <- session.subscribe(subscribedTopics)
           _ <- s.traverse { p =>
-            putStrLn(
+            putStrLn[Task](
               s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS " +
                 s"${Console.CYAN}${p._2.show}${Console.RESET}"
             )
           }
           _ <- ZIO.sleep(Duration(23, TimeUnit.SECONDS))
           _ <- session.unsubscribe(unsubscribedTopics)
-          _ <- putStrLn(s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
+          _ <- putStrLn[Task](s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
           _ <- stopSignal.discrete.compile.drain
         } yield ()
         val reader = session.messages().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
         for {
-          _ <- reader.race(subscriber)
+          _ <- sessionStatus <&> subscriber.race(reader)
         } yield ()
       }
     }
-  }.tapError {
-      case ConnectionFailure(reason) =>
-        putStrLn(s"Connection failure: ${Console.RED}${reason.show}${Console.RESET}")
-    }
-    .fold(_ => Error, _ => Success)
+  }.fold(_ => Error, _ => Success)
 
-  private def processMessages(stopSignal: SignallingRef[Task, Boolean])(message: Message): Stream[Task, Unit] =
-    message match {
-      case Message(LocalSubscriber.stopTopic, _) => Stream.eval_(stopSignal.set(true))
-      case Message(topic, payload) =>
-        Stream.eval(Task {
-          println(
-            s"Topic ${Console.CYAN}$topic${Console.RESET}: " +
-              s"${Console.BOLD}${new String(payload.toArray, "UTF-8")}${Console.RESET}"
-          )
-        })
-    }
+  private def processMessages(stopSignal: SignallingRef[Task, Boolean]): Message => Stream[Task, Unit] = {
+    case Message(LocalSubscriber.stopTopic, _) => Stream.eval_(stopSignal.set(true))
+    case Message(topic, payload) =>
+      Stream.eval(Task {
+        println(
+          s"Topic ${Console.CYAN}$topic${Console.RESET}: " +
+            s"${Console.BOLD}${new String(payload.toArray, "UTF-8")}${Console.RESET}"
+        )
+      })
+  }
 }

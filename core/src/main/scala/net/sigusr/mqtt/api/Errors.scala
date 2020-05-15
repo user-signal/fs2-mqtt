@@ -21,7 +21,7 @@ import enumeratum.values._
 
 import scala.util.control.NoStackTrace
 
-trait Errors extends NoStackTrace
+sealed trait Errors extends NoStackTrace
 
 object Errors {
   case object ProtocolError extends Errors
@@ -31,7 +31,7 @@ object Errors {
 sealed abstract class ConnectionFailureReason(val value: Int) extends IntEnumEntry
 
 object ConnectionFailureReason extends IntEnum[ConnectionFailureReason] {
-  case object ServerNotResponding extends ConnectionFailureReason(0)
+  case class TransportError(reason: Throwable) extends ConnectionFailureReason(0)
   case object BadProtocolVersion extends ConnectionFailureReason(1)
   case object IdentifierRejected extends ConnectionFailureReason(2)
   case object ServerUnavailable extends ConnectionFailureReason(3)
@@ -41,11 +41,11 @@ object ConnectionFailureReason extends IntEnum[ConnectionFailureReason] {
   val values: IndexedSeq[ConnectionFailureReason] = findValues
 
   implicit val showPerson: Show[ConnectionFailureReason] = Show.show {
-    case ServerNotResponding   => "Server not responding"
-    case BadProtocolVersion    => "Bad protocol version"
-    case IdentifierRejected    => "Identifier rejected"
-    case ServerUnavailable     => "Server unavailable"
-    case BadUserNameOrPassword => "Bad user name or password"
-    case NotAuthorized         => "Not authorized"
+    case TransportError(reason) => s"Transport error: ${reason.getMessage}"
+    case BadProtocolVersion     => "Bad protocol version"
+    case IdentifierRejected     => "Identifier rejected"
+    case ServerUnavailable      => "Server unavailable"
+    case BadUserNameOrPassword  => "Bad user name or password"
+    case NotAuthorized          => "Not authorized"
   }
 }

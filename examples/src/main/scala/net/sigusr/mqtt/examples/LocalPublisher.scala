@@ -19,8 +19,8 @@ package net.sigusr.mqtt.examples
 import cats.effect.ExitCode
 import cats.implicits._
 import fs2.Stream
+import fs2.concurrent.SignallingRef
 import monix.eval.{Task, TaskApp}
-import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.impl.protocol.{Session, SessionConfig, TransportConfig}
 
@@ -28,8 +28,6 @@ import scala.concurrent.duration._
 import scala.util.Random
 
 object LocalPublisher extends TaskApp {
-
-  private def putStrLn(s: String): Task[Unit] = Task.eval(println(s))
 
   private val random: Stream[Task, Int] = Stream.eval(Task.delay(Math.abs(Random.nextInt()))).repeat
 
@@ -53,26 +51,32 @@ object LocalPublisher extends TaskApp {
       val sessionConfig = SessionConfig(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
       Session[Task](transportConfig, sessionConfig)
         .use { session =>
-          (for {
-            m <- ticks().zipRight(randomMessage(messages).zip(topics))
-            message = m._1
-            topic = m._2._1
-            qos = m._2._2
-            _ <- Stream.eval(
-              putStrLn(
-                s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS " +
-                  s"${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"
+          SignallingRef[Task, Boolean](false).flatMap { stopSignal =>
+            val sessionStatus = session.state.discrete
+              .evalMap(logSessionStatus[Task])
+              .evalMap(onSessionError[Task])
+              .compile
+              .drain
+            val publisher = (for {
+              m <- ticks().zipRight(randomMessage(messages).zip(topics))
+              message = m._1
+              topic = m._2._1
+              qos = m._2._2
+              _ <- Stream.eval(
+                putStrLn[Task](
+                  s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS " +
+                    s"${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"
+                )
               )
-            )
-            _ <- Stream.eval(session.publish(topic, payload(message), qos))
-          } yield ()).compile.drain
+              _ <- Stream.eval(session.publish(topic, payload(message), qos))
+            } yield ()).compile.drain
+            for {
+              _ <- Task.race(publisher, sessionStatus)
+            } yield ExitCode.Success
+          }
         }
-        .as(ExitCode.Success)
-    }.handleErrorWith {
-      case ConnectionFailure(reason) =>
-        putStrLn(s"Connection failure: ${Console.RED}${reason.show}${Console.RESET}").as(ExitCode.Error)
-    }
-    else
-      putStrLn(s"${Console.RED}At least one or more « messages » should be provided.${Console.RESET}")
+        .handleErrorWith(_ => Task.pure(ExitCode.Error))
+    } else
+      putStrLn[Task](s"${Console.RED}At least one or more « messages » should be provided.${Console.RESET}")
         .as(ExitCode.Error)
 }

@@ -16,17 +16,17 @@
 
 package net.sigusr.mqtt.impl.protocol
 
-import cats.effect.implicits._
 import cats.effect.{Concurrent, ContextShift, Resource, Timer}
 import cats.implicits._
 import fs2.Stream
+import fs2.concurrent.SignallingRef
+import net.sigusr.mqtt.api.ConnectionStatus.Disconnected
 import net.sigusr.mqtt.api.Errors.ProtocolError
-import net.sigusr.mqtt.api.QualityOfService
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
+import net.sigusr.mqtt.api.{ConnectionStatus, QualityOfService}
 import net.sigusr.mqtt.impl.frames.Builders._
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Result.QoS
-import net.sigusr.mqtt.impl.protocol.TransportStatus.{Connected, Connecting, Disconnected, Error}
 
 sealed case class Will(retain: Boolean, qos: QualityOfService, topic: String, message: String)
 sealed case class Message(topic: String, payload: Vector[Byte])
@@ -55,6 +55,8 @@ trait Session[F[_]] {
       retain: Boolean = false
   ): F[Unit]
 
+  def state: SignallingRef[F, ConnectionStatus]
+
 }
 
 object Session {
@@ -69,37 +71,16 @@ object Session {
     ids.cancel *> protocol.send(disconnectMessage)
   }
 
-  private def statusHandler[F[_]: Concurrent]: TransportStatus => F[Unit] = {
-    case Disconnected =>
-      putStrLn(s"${Console.BLUE}Transport disconnected${Console.RESET}")
-    case Connecting(nextDelay, retriesSoFar) =>
-      putStrLn(
-        s"${Console.BLUE}Transport connecting. $retriesSoFar attempt(s) so far, next attempt in $nextDelay ${Console.RESET}"
-      )
-    case Connected =>
-      putStrLn(s"${Console.BLUE}Transport connected${Console.RESET}")
-    case Error(totalRetries, err) =>
-      putStrLn(
-        s"${Console.RED}Transport error: ${err.getMessage}.\nBailing out after $totalRetries retries${Console.RESET}"
-      )
-  }
-
   private def fromTransport[F[_]: Concurrent: Timer: ContextShift](
       transportConfig: TransportConfig,
       sessionConfig: SessionConfig
   ): F[(Session[F], F[Unit])] =
     for {
+
       ids <- IdGenerator[F]
-      transport <- Transport[F](transportConfig)
-
-      _ <-
-        transport.status
-          .evalMap(statusHandler)
-          .compile
-          .drain
-          .start
-
-      protocol <- Protocol(sessionConfig, transport)
+      stateSignal <- SignallingRef[F, ConnectionStatus](Disconnected)
+      transport <- Transport[F](transportConfig, stateSignal)
+      protocol <- Protocol(sessionConfig, transport, stateSignal)
 
     } yield (
       new Session[F] {
@@ -131,6 +112,8 @@ object Session {
                 _ <- protocol.sendReceive(publishFrame(topic, Some(messageId), payload, qos, retain), messageId)
               } yield ()
           }
+
+        override val state: SignallingRef[F, ConnectionStatus] = stateSignal
       },
       disconnect(ids, protocol)
     )

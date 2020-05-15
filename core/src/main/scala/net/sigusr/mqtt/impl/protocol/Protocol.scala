@@ -22,9 +22,10 @@ import cats.effect.{Concurrent, Timer}
 import cats.implicits._
 import fs2.concurrent.{Queue, SignallingRef}
 import fs2.{INothing, Pipe, Pull, Stream}
-import net.sigusr.mqtt.api.ConnectionFailureReason
+import net.sigusr.mqtt.api.ConnectionStatus.{Error, SessionStarted}
 import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
+import net.sigusr.mqtt.api.{ConnectionFailureReason, ConnectionStatus}
 import net.sigusr.mqtt.impl.frames.Builders.connectFrame
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Result.{Empty, QoS}
@@ -46,15 +47,15 @@ object Protocol {
 
   def apply[F[_]: Concurrent: Timer](
       sessionConfig: SessionConfig,
-      transport: Transport[F]
+      transport: Transport[F],
+      stateSignal: SignallingRef[F, ConnectionStatus]
   ): F[Protocol[F]] = {
 
     def inboundMessagesInterpreter(
         messageQueue: Queue[F, Message],
         frameQueue: Queue[F, Frame],
         inFlightOutBound: AtomicMap[F, Int, Frame],
-        pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
-        connackReceived: Deferred[F, Int]
+        pendingResults: AtomicMap[F, Int, Deferred[F, Result]]
     ): Pipe[F, Frame, Unit] = {
 
       def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] =
@@ -82,7 +83,7 @@ object Protocol {
                           .enqueue1(PubrecFrame(Header(), id))
                     ) >>
                       loop(tl, inFlightInBound + id)
-                  case (_, _) => Pull.raiseError[F](ProtocolError)
+                  case (_, _) => Pull.eval(stateSignal.set(Error(ProtocolError))) // TODO Should disconnect
                 }
 
               case PubackFrame(_: Header, messageIdentifier) =>
@@ -111,7 +112,8 @@ object Protocol {
                   loop(tl, inFlightInBound)
 
               case PingRespFrame(_: Header) =>
-                Pull.eval(putStrLn(s" ${Console.CYAN}Todo: Handle ping responses${Console.RESET}")) >>
+                // TODO Should disconnect when more than a PingReq is not acknowledged
+                Pull.eval(putStrLn(s" ${Console.CYAN}Todo: Handle ping responses properly${Console.RESET}")) >>
                   loop(tl, inFlightInBound)
 
               case UnsubackFrame(_: Header, messageIdentifier) =>
@@ -129,11 +131,16 @@ object Protocol {
                   loop(tl, inFlightInBound)
 
               case ConnackFrame(_: Header, returnCode) =>
-                Pull.eval(connackReceived.complete(returnCode)) >>
-                  loop(tl, inFlightInBound)
+                if (returnCode == 0)
+                  Pull.eval(stateSignal.set(SessionStarted)) >>
+                    loop(tl, inFlightInBound)
+                else
+                  Pull.eval(
+                    stateSignal.set(Error(ConnectionFailure(ConnectionFailureReason.withValue(returnCode))))
+                  ) // TODO Should disconnect
 
               case _ =>
-                Pull.raiseError[F](ProtocolError)
+                Pull.eval(stateSignal.set(Error(ProtocolError))) // TODO Should disconnect
             }
 
           case None => Pull.done
@@ -163,7 +170,6 @@ object Protocol {
     }
 
     for {
-      connackReceived <- Deferred[F, Int]
       messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
       frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
       stopSignal <- SignallingRef[F, Boolean](false)
@@ -182,32 +188,29 @@ object Protocol {
       inbound <-
         transport.inFrameStream
           .through(
-            inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults, connackReceived)
+            inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults)
           )
           .compile
           .drain
           .start
 
       _ <- frameQueue.enqueue1(connectFrame(sessionConfig))
-      r <- connackReceived.get
 
-    } yield
-      if (r == 0) new Protocol[F] {
+    } yield new Protocol[F] {
 
-        override def cancel: F[Unit] = stopSignal.set(true) *> pingTicker.cancel *> outbound.cancel *> inbound.cancel
+      override def cancel: F[Unit] = stopSignal.set(true) *> pingTicker.cancel *> outbound.cancel *> inbound.cancel
 
-        override def send: Frame => F[Unit] = frameQueue.enqueue1
+      override def send: Frame => F[Unit] = frameQueue.enqueue1
 
-        override def sendReceive(frame: Frame, messageId: Int): F[Result] =
-          for {
-            d <- Deferred[F, Result]
-            _ <- pendingResults.update(messageId, d)
-            _ <- frameQueue.enqueue1(frame)
-            r <- d.get
-          } yield r
+      override def sendReceive(frame: Frame, messageId: Int): F[Result] =
+        for {
+          d <- Deferred[F, Result]
+          _ <- pendingResults.update(messageId, d)
+          _ <- frameQueue.enqueue1(frame)
+          r <- d.get
+        } yield r
 
-        override def messages: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
-      }
-      else throw ConnectionFailure(ConnectionFailureReason.withValue(r))
+      override def messages: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
+    }
   }
 }
