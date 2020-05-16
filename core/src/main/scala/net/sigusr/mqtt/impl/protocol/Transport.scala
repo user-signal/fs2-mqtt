@@ -19,7 +19,7 @@ package net.sigusr.mqtt.impl.protocol
 import java.net.InetSocketAddress
 
 import cats.effect.implicits._
-import cats.effect.{Blocker, Concurrent, ContextShift, Timer}
+import cats.effect.{Blocker, Concurrent, ContextShift, Fiber, Timer}
 import cats.implicits._
 import enumeratum.values._
 import fs2.concurrent.{Queue, SignallingRef}
@@ -74,31 +74,31 @@ object Transport {
         _ <- Stream.eval(putStrLn(s" ${d.value} ${d.color}$frame${Console.RESET}")).whenA(d.active)
       } yield frame
 
-  private def publishError[F[_]: Concurrent](
-      statusSignal: SignallingRef[F, ConnectionStatus]
-  )(err: Throwable, details: RetryDetails): F[Unit] =
-    details match {
-      case WillDelayAndRetry(nextDelay: FiniteDuration, retriesSoFar: Int, _) =>
-        statusSignal.set(Connecting(nextDelay, retriesSoFar))
-
-      case GivingUp(_, _) =>
-        statusSignal.set(Error(ConnectionFailure(TransportError(err))))
-    }
-
-  private def connect[F[_]: Concurrent: ContextShift](
+  private def connect[F[_]: Concurrent: ContextShift: Timer](
       transportConfig: TransportConfig,
-      statusSignal: SignallingRef[F, ConnectionStatus],
+      stateSignal: SignallingRef[F, ConnectionStatus],
       in: Queue[F, Frame],
       out: Queue[F, Frame]
-  ): F[Unit] = {
+  ): F[Fiber[F, Unit]] = {
 
-    def incomming(socket: Socket[F]) =
+    def publishError(
+        stateSignal: SignallingRef[F, ConnectionStatus]
+    )(err: Throwable, details: RetryDetails): F[Unit] =
+      details match {
+        case WillDelayAndRetry(nextDelay: FiniteDuration, retriesSoFar: Int, _) =>
+          stateSignal.set(Connecting(nextDelay, retriesSoFar))
+
+        case GivingUp(_, _) =>
+          stateSignal.set(Error(ConnectionFailure(TransportError(err))))
+      }
+
+    def incoming(socket: Socket[F]) =
       out.dequeue
         .through(tracingPipe(Out(transportConfig.traceMessages)))
         .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
         .through(socket.writes(transportConfig.writeTimeout))
         .onComplete {
-          Stream.eval(statusSignal.set(Disconnected))
+          Stream.eval(stateSignal.set(Disconnected))
         }
         .compile
         .drain
@@ -110,37 +110,44 @@ object Transport {
         .through(tracingPipe(In(transportConfig.traceMessages)))
         .through(in.enqueue)
         .onComplete {
-          Stream.eval(statusSignal.set(Disconnected))
+          Stream.eval(stateSignal.set(Disconnected))
         }
         .compile
         .drain
 
-    Blocker[F].use { blocker =>
-      SocketGroup[F](blocker).use { socketGroup =>
-        socketGroup.client[F](new InetSocketAddress(transportConfig.host, transportConfig.port)).use { socket =>
-          for {
-            _ <- statusSignal.set(Connected)
-            _ <- Concurrent[F].race(incomming(socket), outgoing(socket))
-          } yield ()
+    def loop(): F[Unit] = {
+
+      val policy: RetryPolicy[F] = RetryPolicies
+        .limitRetries[F](transportConfig.maxRetries)
+        .join(RetryPolicies.fibonacciBackoff(transportConfig.baseDelay))
+
+      retryingOnAllErrors(policy, publishError(stateSignal)) {
+        Blocker[F].use { blocker =>
+          SocketGroup[F](blocker).use { socketGroup =>
+            socketGroup.client[F](new InetSocketAddress(transportConfig.host, transportConfig.port)).use { socket =>
+              stateSignal.set(Connected) >> Concurrent[F].race(incoming(socket), outgoing(socket))
+            }
+          }
         }
+      } >> stateSignal.get.flatMap {
+        case Disconnected => loop()
+        case _            => Concurrent[F].pure(())
       }
     }
+
+    loop().start
   }
 
   def apply[F[_]: Concurrent: ContextShift: Timer](
       transportConfig: TransportConfig,
       stateSignal: SignallingRef[F, ConnectionStatus]
-  ): F[Transport[F]] = {
-
-    val policy = RetryPolicies
-      .limitRetries[F](transportConfig.maxRetries)
-      .join(RetryPolicies.fibonacciBackoff(transportConfig.baseDelay))
+  ): F[Transport[F]] =
     for {
+
       in <- Queue.bounded[F, Frame](QUEUE_SIZE)
       out <- Queue.bounded[F, Frame](QUEUE_SIZE)
-      _ <- retryingOnAllErrors[Unit](policy, publishError[F](stateSignal))(
-        connect(transportConfig, stateSignal, in, out)
-      ).start
+      _ <- connect(transportConfig, stateSignal, in, out)
+
     } yield new Transport[F] {
 
       def outFrameStream: Pipe[F, Frame, Unit] = out.enqueue
@@ -148,5 +155,4 @@ object Transport {
       def inFrameStream: Stream[F, Frame] = in.dequeue
 
     }
-  }
 }
