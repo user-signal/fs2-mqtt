@@ -18,7 +18,7 @@ package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.concurrent.Deferred
 import cats.effect.implicits._
-import cats.effect.{Concurrent, Timer}
+import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
 import fs2.concurrent.{Queue, SignallingRef}
 import fs2.{INothing, Pipe, Pull, Stream}
@@ -45,9 +45,9 @@ trait Protocol[F[_]] {
 
 object Protocol {
 
-  def apply[F[_]: Concurrent: Timer](
+  def apply[F[_]: Concurrent: Timer: ContextShift](
       sessionConfig: SessionConfig,
-      transport: Transport[F],
+      transportConfig: TransportConfig,
       stateSignal: SignallingRef[F, ConnectionStatus]
   ): F[Protocol[F]] = {
 
@@ -176,6 +176,7 @@ object Protocol {
       pingTicker <- Ticker(sessionConfig.keepAlive.toLong, frameQueue.enqueue1(PingReqFrame(Header())))
       inFlightOutBound <- AtomicMap[F, Int, Frame]
       pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
+      transport <- Transport[F](transportConfig, stateSignal)
 
       outbound <-
         frameQueue.dequeue

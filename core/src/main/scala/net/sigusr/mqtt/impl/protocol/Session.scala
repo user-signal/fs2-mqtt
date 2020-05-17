@@ -79,8 +79,7 @@ object Session {
 
       ids <- IdGenerator[F]
       stateSignal <- SignallingRef[F, ConnectionStatus](Disconnected)
-      transport <- Transport[F](transportConfig, stateSignal)
-      protocol <- Protocol(sessionConfig, transport, stateSignal)
+      protocol <- Protocol(sessionConfig, transportConfig, stateSignal)
 
     } yield (
       new Session[F] {

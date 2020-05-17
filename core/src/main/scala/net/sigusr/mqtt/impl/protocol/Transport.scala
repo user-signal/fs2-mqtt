@@ -92,7 +92,7 @@ object Transport {
           stateSignal.set(Error(ConnectionFailure(TransportError(err))))
       }
 
-    def incoming(socket: Socket[F]) =
+    def outgoing(socket: Socket[F]) =
       out.dequeue
         .through(tracingPipe(Out(transportConfig.traceMessages)))
         .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
@@ -103,7 +103,7 @@ object Transport {
         .compile
         .drain
 
-    def outgoing(socket: Socket[F]) =
+    def incoming(socket: Socket[F]) =
       socket
         .reads(transportConfig.numReadBytes, transportConfig.readTimeout)
         .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
@@ -125,7 +125,7 @@ object Transport {
         Blocker[F].use { blocker =>
           SocketGroup[F](blocker).use { socketGroup =>
             socketGroup.client[F](new InetSocketAddress(transportConfig.host, transportConfig.port)).use { socket =>
-              stateSignal.set(Connected) >> Concurrent[F].race(incoming(socket), outgoing(socket))
+              stateSignal.set(Connected) >> Concurrent[F].race(outgoing(socket), incoming(socket))
             }
           }
         }
