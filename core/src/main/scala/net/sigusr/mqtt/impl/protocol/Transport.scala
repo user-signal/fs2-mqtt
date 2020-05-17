@@ -22,7 +22,7 @@ import cats.effect.implicits._
 import cats.effect.{Blocker, Concurrent, ContextShift, Fiber, Timer}
 import cats.implicits._
 import enumeratum.values._
-import fs2.concurrent.{Queue, SignallingRef}
+import fs2.concurrent.SignallingRef
 import fs2.io.tcp.{Socket, SocketGroup}
 import fs2.{Pipe, Stream}
 import net.sigusr.mqtt.api.ConnectionFailureReason.TransportError
@@ -49,11 +49,7 @@ sealed case class TransportConfig(
     traceMessages: Boolean = false
 )
 
-trait Transport[F[_]] {
-
-  def outFrameStream: Pipe[F, Frame, Unit]
-
-}
+trait Transport[F[_]] {}
 
 object Transport {
 
@@ -76,7 +72,7 @@ object Transport {
       transportConfig: TransportConfig,
       stateSignal: SignallingRef[F, ConnectionStatus],
       in: Pipe[F, Frame, Unit],
-      out: Queue[F, Frame]
+      out: Stream[F, Frame]
   ): F[Fiber[F, Unit]] = {
 
     def publishError(
@@ -91,7 +87,7 @@ object Transport {
       }
 
     def outgoing(socket: Socket[F]) =
-      out.dequeue
+      out
         .through(tracingPipe(Out(transportConfig.traceMessages)))
         .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
         .through(socket.writes(transportConfig.writeTimeout))
@@ -139,16 +135,12 @@ object Transport {
   def apply[F[_]: Concurrent: ContextShift: Timer](
       transportConfig: TransportConfig,
       in: Pipe[F, Frame, Unit],
+      out: Stream[F, Frame],
       stateSignal: SignallingRef[F, ConnectionStatus]
   ): F[Transport[F]] =
     for {
 
-      out <- Queue.bounded[F, Frame](QUEUE_SIZE)
       _ <- connect(transportConfig, stateSignal, in, out)
 
-    } yield new Transport[F] {
-
-      def outFrameStream: Pipe[F, Frame, Unit] = out.enqueue
-
-    }
+    } yield new Transport[F] {}
 }

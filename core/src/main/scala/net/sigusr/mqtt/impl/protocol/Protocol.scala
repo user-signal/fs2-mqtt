@@ -17,7 +17,6 @@
 package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.concurrent.Deferred
-import cats.effect.implicits._
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
 import fs2.concurrent.{Queue, SignallingRef}
@@ -178,21 +177,15 @@ object Protocol {
       pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
 
       in: Pipe[F, Frame, Unit] = inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults)
-      transport <- Transport[F](transportConfig, in, stateSignal)
+      out: Stream[F, Frame] = frameQueue.dequeue.through(outboundMessagesInterpreter(inFlightOutBound, pingTicker))
 
-      outbound <-
-        frameQueue.dequeue
-          .through(outboundMessagesInterpreter(inFlightOutBound, pingTicker))
-          .through(transport.outFrameStream)
-          .compile
-          .drain
-          .start
+      _ <- Transport[F](transportConfig, in, out, stateSignal) // TODO: cancel or ressource?
 
       _ <- frameQueue.enqueue1(connectFrame(sessionConfig))
 
     } yield new Protocol[F] {
 
-      override def cancel: F[Unit] = stopSignal.set(true) *> pingTicker.cancel *> outbound.cancel
+      override def cancel: F[Unit] = stopSignal.set(true) *> pingTicker.cancel
 
       override def send: Frame => F[Unit] = frameQueue.enqueue1
 
