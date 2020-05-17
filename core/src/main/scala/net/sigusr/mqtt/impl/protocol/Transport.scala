@@ -51,8 +51,6 @@ sealed case class TransportConfig(
 
 trait Transport[F[_]] {
 
-  def inFrameStream: Stream[F, Frame]
-
   def outFrameStream: Pipe[F, Frame, Unit]
 
 }
@@ -77,7 +75,7 @@ object Transport {
   private def connect[F[_]: Concurrent: ContextShift: Timer](
       transportConfig: TransportConfig,
       stateSignal: SignallingRef[F, ConnectionStatus],
-      in: Queue[F, Frame],
+      in: Pipe[F, Frame, Unit],
       out: Queue[F, Frame]
   ): F[Fiber[F, Unit]] = {
 
@@ -108,7 +106,7 @@ object Transport {
         .reads(transportConfig.numReadBytes, transportConfig.readTimeout)
         .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
         .through(tracingPipe(In(transportConfig.traceMessages)))
-        .through(in.enqueue)
+        .through(in)
         .onComplete {
           Stream.eval(stateSignal.set(Disconnected))
         }
@@ -140,19 +138,17 @@ object Transport {
 
   def apply[F[_]: Concurrent: ContextShift: Timer](
       transportConfig: TransportConfig,
+      in: Pipe[F, Frame, Unit],
       stateSignal: SignallingRef[F, ConnectionStatus]
   ): F[Transport[F]] =
     for {
 
-      in <- Queue.bounded[F, Frame](QUEUE_SIZE)
       out <- Queue.bounded[F, Frame](QUEUE_SIZE)
       _ <- connect(transportConfig, stateSignal, in, out)
 
     } yield new Transport[F] {
 
       def outFrameStream: Pipe[F, Frame, Unit] = out.enqueue
-
-      def inFrameStream: Stream[F, Frame] = in.dequeue
 
     }
 }

@@ -176,7 +176,9 @@ object Protocol {
       pingTicker <- Ticker(sessionConfig.keepAlive.toLong, frameQueue.enqueue1(PingReqFrame(Header())))
       inFlightOutBound <- AtomicMap[F, Int, Frame]
       pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
-      transport <- Transport[F](transportConfig, stateSignal)
+
+      in: Pipe[F, Frame, Unit] = inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults)
+      transport <- Transport[F](transportConfig, in, stateSignal)
 
       outbound <-
         frameQueue.dequeue
@@ -186,20 +188,11 @@ object Protocol {
           .drain
           .start
 
-      inbound <-
-        transport.inFrameStream
-          .through(
-            inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults)
-          )
-          .compile
-          .drain
-          .start
-
       _ <- frameQueue.enqueue1(connectFrame(sessionConfig))
 
     } yield new Protocol[F] {
 
-      override def cancel: F[Unit] = stopSignal.set(true) *> pingTicker.cancel *> outbound.cancel *> inbound.cancel
+      override def cancel: F[Unit] = stopSignal.set(true) *> pingTicker.cancel *> outbound.cancel
 
       override def send: Frame => F[Unit] = frameQueue.enqueue1
 
