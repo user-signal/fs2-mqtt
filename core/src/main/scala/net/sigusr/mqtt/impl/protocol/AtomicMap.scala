@@ -20,25 +20,30 @@ import cats.effect.Concurrent
 import cats.effect.concurrent.Ref
 import cats.implicits._
 
+import scala.collection.immutable.TreeMap
+
 trait AtomicMap[F[_], K, V] {
 
   def update(key: K, result: V): F[Unit]
 
   def remove(key: K): F[Option[V]]
 
+  def removeAll(): F[List[V]]
 }
 
 object AtomicMap {
 
-  def apply[F[_]: Concurrent, K, V]: F[AtomicMap[F, K, V]] =
+  def apply[F[_]: Concurrent, K: Ordering, V]: F[AtomicMap[F, K, V]] =
     for {
 
-      mm <- Ref.of[F, Map[K, V]](Map.empty)
+      mm <- Ref.of[F, Map[K, V]](TreeMap.empty[K, V])
 
     } yield new AtomicMap[F, K, V]() {
 
       override def update(key: K, result: V): F[Unit] = mm.update(m => m.updated(key, result))
 
       override def remove(key: K): F[Option[V]] = mm.modify(m => (m.removed(key), m.get(key)))
+
+      override def removeAll(): F[List[V]] = mm.modify(m => (TreeMap.empty[K, V], m.toSeq.map(p => p._2).toList))
     }
 }

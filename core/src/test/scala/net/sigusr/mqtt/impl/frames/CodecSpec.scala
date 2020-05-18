@@ -426,7 +426,7 @@ class CodecSpec extends Specification {
   }
 
   "A message codec" should {
-    "Fail if there is not enough bytes to decodde" in {
+    "Fail if there is not enough bytes to decode" in {
       val header = Header(dup = false, AtLeastOnce.value)
       val topic = "a/b"
       val publishFrame = PublishFrame(

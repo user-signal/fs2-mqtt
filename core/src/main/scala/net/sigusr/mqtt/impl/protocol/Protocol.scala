@@ -21,12 +21,12 @@ import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
 import fs2.concurrent.{Queue, SignallingRef}
 import fs2.{INothing, Pipe, Pull, Stream}
-import net.sigusr.mqtt.api.ConnectionState.{Connected, Error, SessionStarted}
+import net.sigusr.mqtt.api.ConnectionState.{Connected, Disconnected, Error, SessionStarted}
 import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.api.{ConnectionFailureReason, ConnectionState}
-import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.frames.Builders.connectFrame
+import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Result.{Empty, QoS}
 import scodec.bits.ByteVector
 
@@ -40,21 +40,23 @@ trait Protocol[F[_]] {
 
   def messages: Stream[F, Message]
 
+  def state: SignallingRef[F, ConnectionState]
+
 }
 
 object Protocol {
 
   def apply[F[_]: Concurrent: Timer: ContextShift](
       sessionConfig: SessionConfig,
-      transportConfig: TransportConfig,
-      stateSignal: SignallingRef[F, ConnectionState]
+      transportConfig: TransportConfig
   ): F[Protocol[F]] = {
 
     def inboundMessagesInterpreter(
         messageQueue: Queue[F, Message],
         frameQueue: Queue[F, Frame],
         inFlightOutBound: AtomicMap[F, Int, Frame],
-        pendingResults: AtomicMap[F, Int, Deferred[F, Result]]
+        pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
+        stateSignal: SignallingRef[F, ConnectionState]
     ): Pipe[F, Frame, Unit] = {
 
       def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] =
@@ -104,7 +106,7 @@ object Protocol {
                   loop(tl, inFlightInBound)
 
               case PubrecFrame(header, messageIdentifier) =>
-                val pubrelFrame = PubrelFrame(header.copy(qos = 1), messageIdentifier)
+                val pubrelFrame = PubrelFrame(header, messageIdentifier)
                 Pull.eval(
                   inFlightOutBound.update(messageIdentifier, pubrelFrame) >> frameQueue.enqueue1(pubrelFrame)
                 ) >>
@@ -166,8 +168,17 @@ object Protocol {
                 case _ => Stream.eval(Concurrent[F].pure[Unit](()))
               }) >> Stream.eval(pingTicker.reset) >> Stream.emit(Some(hd))
             }
-          case Connected => Stream.emit(Some(connectFrame(sessionConfig)))
-          case _         => Stream.emit(None)
+          case Connected =>
+            Stream.emit(Some(connectFrame(sessionConfig))) ++
+              (if (sessionConfig.cleanSession)
+                 Stream.emit(None)
+               else
+                 Stream
+                   .eval(
+                     inFlightOutBound.removeAll().map(m => m.map(setDupFlag).map(Some(_))).map(x => Stream.emits(x))
+                   )
+                   .flatten)
+          case _ => Stream.emit(None)
         }.unNone
 
     for {
@@ -178,9 +189,10 @@ object Protocol {
       pingTicker <- Ticker(sessionConfig.keepAlive.toLong, frameQueue.enqueue1(PingReqFrame(Header())))
       inFlightOutBound <- AtomicMap[F, Int, Frame]
       pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
+      stateSignal <- SignallingRef[F, ConnectionState](Disconnected)
 
       inbound: Pipe[F, Frame, Unit] =
-        inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults)
+        inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults, stateSignal)
       outbound: Stream[F, Frame] =
         frameQueue.dequeue.through(outboundMessagesInterpreter(inFlightOutBound, stateSignal, pingTicker))
 
@@ -200,7 +212,9 @@ object Protocol {
           r <- d.get
         } yield r
 
-      override def messages: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
+      override val messages: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
+
+      override val state: SignallingRef[F, ConnectionState] = stateSignal
     }
   }
 }

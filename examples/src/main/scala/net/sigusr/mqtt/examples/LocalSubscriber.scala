@@ -48,7 +48,8 @@ object LocalSubscriber extends App {
   override def run(args: List[String]): ZIO[ZEnv, Nothing, Int] = {
     val transportConfig =
       TransportConfig("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true)
-    val sessionConfig = SessionConfig(s"$localSubscriber", user = Some(localSubscriber), password = Some("yolo"))
+    val sessionConfig =
+      SessionConfig(s"$localSubscriber", cleanSession = false, user = Some(localSubscriber), password = Some("yolo"))
     Session[Task](transportConfig, sessionConfig).use { session =>
       SignallingRef[Task, Boolean](false).flatMap { stopSignal =>
         val sessionStatus = session.state.discrete
