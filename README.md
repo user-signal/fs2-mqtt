@@ -4,6 +4,7 @@
 [build-status-icon]: https://travis-ci.org/user-signal/fs2-mqtt.svg?branch=master
 [build-status]: https://travis-ci.org/user-signal/fs2-mqtt
 [cats-effects-IO]: https://typelevel.org/cats-effect/datatypes/io.html
+[cats-effects-retry]: https://cb372.github.io/cats-retry
 [cats-effets]: https://github.com/typelevel/cats-effect
 [cats]: https://typelevel.org/cats
 [ci]: https://travis-ci.org/user-signal/fs2-mqtt
@@ -13,6 +14,7 @@
 [local publisher]: https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalPublisher.scala
 [local subscriber]: https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalSubscriber.scala
 [monix]: https://monix.io
+[monocle]: https://optics-dev.github.io/Monocle
 [mosquitto]: http://mosquitto.org
 [practical-fp]: https://leanpub.com/pfp-scala
 [scala-js]: https://www.scala-js.org
@@ -84,7 +86,7 @@ to Maven Central. In this case just add,
 scalaVersion := "2.13.2"
 
 libraryDependencies ++= Seq(
-    "net.sigusr" %% "fs2-mqtt" % "0.2.0"
+    "net.sigusr" %% "fs2-mqtt" % "0.3.0"
 )
 ```
 
@@ -95,6 +97,8 @@ Roughly speaking this library depends on:
  * [FS2][fs2] 
  * [scodec][scodec] and [scodec-stream][scodec-stream]
  * [Cats effects][cats-effets] for some internal concurrency stuff
+ * [Cats effects retry][cats-effects-retry] to manage connection attempts
+ * [Monocle][monocle]… because why not! 
  
 This library should work seamlessly with various compatible IO monads: [cats effects IO][cats-effects-IO] 
 of course, but [Monix][monix] and [ZIO][zio] as well as both support *cats effects* typeclasses.
