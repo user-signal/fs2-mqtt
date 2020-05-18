@@ -21,7 +21,8 @@ import cats.implicits._
 import fs2.Stream
 import monix.eval.{Task, TaskApp}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
-import net.sigusr.mqtt.impl.protocol.{Session, SessionConfig, TransportConfig}
+import net.sigusr.mqtt.api.{Session, SessionConfig}
+import net.sigusr.mqtt.impl.protocol.TransportConfig
 
 import scala.concurrent.duration._
 import scala.util.Random

@@ -24,7 +24,7 @@ import fs2.{INothing, Pipe, Pull, Stream}
 import net.sigusr.mqtt.api.ConnectionState.{Connected, Disconnected, Error, SessionStarted}
 import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
-import net.sigusr.mqtt.api.{ConnectionFailureReason, ConnectionState}
+import net.sigusr.mqtt.api.{ConnectionFailureReason, ConnectionState, Message, SessionConfig}
 import net.sigusr.mqtt.impl.frames.Builders.connectFrame
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Result.{Empty, QoS}

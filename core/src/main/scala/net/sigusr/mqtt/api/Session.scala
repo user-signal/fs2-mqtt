@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package net.sigusr.mqtt.impl.protocol
+package net.sigusr.mqtt.api
 
 import cats.effect.{Concurrent, ContextShift, Resource, Timer}
 import cats.implicits._
@@ -22,10 +22,10 @@ import fs2.Stream
 import fs2.concurrent.SignallingRef
 import net.sigusr.mqtt.api.Errors.ProtocolError
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
-import net.sigusr.mqtt.api.{ConnectionState, QualityOfService}
 import net.sigusr.mqtt.impl.frames.Builders._
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Result.QoS
+import net.sigusr.mqtt.impl.protocol.{DEFAULT_KEEP_ALIVE, IdGenerator, Protocol, TransportConfig}
 
 sealed case class Will(retain: Boolean, qos: QualityOfService, topic: String, message: String)
 sealed case class Message(topic: String, payload: Vector[Byte])

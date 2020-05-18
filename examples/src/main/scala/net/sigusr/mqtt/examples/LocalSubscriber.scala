@@ -21,9 +21,9 @@ import java.util.concurrent.TimeUnit
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
-import net.sigusr.mqtt.api.QualityOfService
+import net.sigusr.mqtt.api.{Message, QualityOfService, Session, SessionConfig}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
-import net.sigusr.mqtt.impl.protocol.{Message, Session, SessionConfig, TransportConfig}
+import net.sigusr.mqtt.impl.protocol.TransportConfig
 import zio.duration.Duration
 import zio.interop.catz._
 import zio.interop.catz.implicits._
