@@ -21,12 +21,12 @@ import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
 import fs2.concurrent.{Queue, SignallingRef}
 import fs2.{INothing, Pipe, Pull, Stream}
-import net.sigusr.mqtt.api.ConnectionStatus.{Error, SessionStarted}
+import net.sigusr.mqtt.api.ConnectionState.{Connected, Error, SessionStarted}
 import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
-import net.sigusr.mqtt.api.{ConnectionFailureReason, ConnectionStatus}
-import net.sigusr.mqtt.impl.frames.Builders.connectFrame
+import net.sigusr.mqtt.api.{ConnectionFailureReason, ConnectionState}
 import net.sigusr.mqtt.impl.frames._
+import net.sigusr.mqtt.impl.frames.Builders.connectFrame
 import net.sigusr.mqtt.impl.protocol.Result.{Empty, QoS}
 import scodec.bits.ByteVector
 
@@ -47,7 +47,7 @@ object Protocol {
   def apply[F[_]: Concurrent: Timer: ContextShift](
       sessionConfig: SessionConfig,
       transportConfig: TransportConfig,
-      stateSignal: SignallingRef[F, ConnectionStatus]
+      stateSignal: SignallingRef[F, ConnectionState]
   ): F[Protocol[F]] = {
 
     def inboundMessagesInterpreter(
@@ -144,31 +144,34 @@ object Protocol {
 
           case None => Pull.done
         }
-      in => loop(in, Set.empty[Int]).stream
+      loop(_, Set.empty[Int]).stream
     }
 
     def outboundMessagesInterpreter(
         inFlightOutBound: AtomicMap[F, Int, Frame],
+        stateSignal: SignallingRef[F, ConnectionState],
         pingTicker: Ticker[F]
-    ): Pipe[F, Frame, Frame] = {
-      def loop(s: Stream[F, Frame]): Pull[F, Frame, Unit] =
-        s.pull.uncons1.flatMap {
-          case Some((hd, tl)) =>
-            (hd match {
-              case PublishFrame(_: Header, _, messageIdentifier, _) =>
-                Pull.eval(messageIdentifier.fold(Concurrent[F].pure[Unit](()))(inFlightOutBound.update(_, hd)))
-              case SubscribeFrame(_: Header, messageIdentifier, _) =>
-                Pull.eval(inFlightOutBound.update(messageIdentifier, hd))
-              case UnsubscribeFrame(_: Header, messageIdentifier, _) =>
-                Pull.eval(inFlightOutBound.update(messageIdentifier, hd))
-              case _ => Pull.eval(Concurrent[F].pure[Unit](()))
-            }) >> Pull.output1(hd) >> Pull.eval(pingTicker.reset) >> loop(tl)
-          case None => Pull.done
-        }
-      loop(_).stream
-    }
+    ): Pipe[F, Frame, Frame] =
+      in =>
+        stateSignal.discrete.flatMap {
+          case SessionStarted =>
+            in.flatMap { hd =>
+              (hd match {
+                case PublishFrame(_: Header, _, messageIdentifier, _) =>
+                  Stream.eval(messageIdentifier.fold(Concurrent[F].pure[Unit](()))(inFlightOutBound.update(_, hd)))
+                case SubscribeFrame(_: Header, messageIdentifier, _) =>
+                  Stream.eval(inFlightOutBound.update(messageIdentifier, hd))
+                case UnsubscribeFrame(_: Header, messageIdentifier, _) =>
+                  Stream.eval(inFlightOutBound.update(messageIdentifier, hd))
+                case _ => Stream.eval(Concurrent[F].pure[Unit](()))
+              }) >> Stream.eval(pingTicker.reset) >> Stream.emit(Some(hd))
+            }
+          case Connected => Stream.emit(Some(connectFrame(sessionConfig)))
+          case _         => Stream.emit(None)
+        }.unNone
 
     for {
+
       messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
       frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
       stopSignal <- SignallingRef[F, Boolean](false)
@@ -176,12 +179,12 @@ object Protocol {
       inFlightOutBound <- AtomicMap[F, Int, Frame]
       pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
 
-      in: Pipe[F, Frame, Unit] = inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults)
-      out: Stream[F, Frame] = frameQueue.dequeue.through(outboundMessagesInterpreter(inFlightOutBound, pingTicker))
+      inbound: Pipe[F, Frame, Unit] =
+        inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults)
+      outbound: Stream[F, Frame] =
+        frameQueue.dequeue.through(outboundMessagesInterpreter(inFlightOutBound, stateSignal, pingTicker))
 
-      _ <- Transport[F](transportConfig, in, out, stateSignal) // TODO: cancel or ressource?
-
-      _ <- frameQueue.enqueue1(connectFrame(sessionConfig))
+      _ <- Transport[F](transportConfig, inbound, outbound, stateSignal) // TODO: cancel or ressource?
 
     } yield new Protocol[F] {
 

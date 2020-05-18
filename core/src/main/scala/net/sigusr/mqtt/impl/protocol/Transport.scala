@@ -26,8 +26,8 @@ import fs2.concurrent.SignallingRef
 import fs2.io.tcp.{Socket, SocketGroup}
 import fs2.{Pipe, Stream}
 import net.sigusr.mqtt.api.ConnectionFailureReason.TransportError
-import net.sigusr.mqtt.api.ConnectionStatus
-import net.sigusr.mqtt.api.ConnectionStatus.{Connected, Connecting, Disconnected, Error}
+import net.sigusr.mqtt.api.ConnectionState
+import net.sigusr.mqtt.api.ConnectionState.{Connected, Connecting, Disconnected, Error}
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.impl.frames.Frame
 import net.sigusr.mqtt.impl.protocol.Transport.Direction.{In, Out}
@@ -70,13 +70,13 @@ object Transport {
 
   private def connect[F[_]: Concurrent: ContextShift: Timer](
       transportConfig: TransportConfig,
-      stateSignal: SignallingRef[F, ConnectionStatus],
+      stateSignal: SignallingRef[F, ConnectionState],
       in: Pipe[F, Frame, Unit],
       out: Stream[F, Frame]
   ): F[Fiber[F, Unit]] = {
 
     def publishError(
-        stateSignal: SignallingRef[F, ConnectionStatus]
+        stateSignal: SignallingRef[F, ConnectionState]
     )(err: Throwable, details: RetryDetails): F[Unit] =
       details match {
         case WillDelayAndRetry(nextDelay: FiniteDuration, retriesSoFar: Int, _) =>
@@ -136,7 +136,7 @@ object Transport {
       transportConfig: TransportConfig,
       in: Pipe[F, Frame, Unit],
       out: Stream[F, Frame],
-      stateSignal: SignallingRef[F, ConnectionStatus]
+      stateSignal: SignallingRef[F, ConnectionState]
   ): F[Transport[F]] =
     for {
 

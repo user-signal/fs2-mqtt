@@ -19,7 +19,6 @@ package net.sigusr.mqtt.examples
 import cats.effect.ExitCode
 import cats.implicits._
 import fs2.Stream
-import fs2.concurrent.SignallingRef
 import monix.eval.{Task, TaskApp}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.impl.protocol.{Session, SessionConfig, TransportConfig}
@@ -51,29 +50,27 @@ object LocalPublisher extends TaskApp {
       val sessionConfig = SessionConfig(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
       Session[Task](transportConfig, sessionConfig)
         .use { session =>
-          SignallingRef[Task, Boolean](false).flatMap { stopSignal =>
-            val sessionStatus = session.state.discrete
-              .evalMap(logSessionStatus[Task])
-              .evalMap(onSessionError[Task])
-              .compile
-              .drain
-            val publisher = (for {
-              m <- ticks().zipRight(randomMessage(messages).zip(topics))
-              message = m._1
-              topic = m._2._1
-              qos = m._2._2
-              _ <- Stream.eval(
-                putStrLn[Task](
-                  s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS " +
-                    s"${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"
-                )
+          val sessionStatus = session.state.discrete
+            .evalMap(logSessionStatus[Task])
+            .evalMap(onSessionError[Task])
+            .compile
+            .drain
+          val publisher = (for {
+            m <- ticks().zipRight(randomMessage(messages).zip(topics))
+            message = m._1
+            topic = m._2._1
+            qos = m._2._2
+            _ <- Stream.eval(
+              putStrLn[Task](
+                s"Publishing on topic ${Console.CYAN}$topic${Console.RESET} with QoS " +
+                  s"${Console.CYAN}${qos.show}${Console.RESET} message ${Console.BOLD}$message${Console.RESET}"
               )
-              _ <- Stream.eval(session.publish(topic, payload(message), qos))
-            } yield ()).compile.drain
-            for {
-              _ <- Task.race(publisher, sessionStatus)
-            } yield ExitCode.Success
-          }
+            )
+            _ <- Stream.eval(session.publish(topic, payload(message), qos))
+          } yield ()).compile.drain
+          for {
+            _ <- Task.race(publisher, sessionStatus)
+          } yield ExitCode.Success
         }
         .handleErrorWith(_ => Task.pure(ExitCode.Error))
     } else

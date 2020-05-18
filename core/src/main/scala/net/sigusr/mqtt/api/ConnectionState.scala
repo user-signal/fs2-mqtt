@@ -20,15 +20,15 @@ import cats.Show
 
 import scala.concurrent.duration.FiniteDuration
 
-sealed trait ConnectionStatus
-object ConnectionStatus {
-  case object Disconnected extends ConnectionStatus
-  case class Connecting(nextDelay: FiniteDuration, retriesSoFar: Int) extends ConnectionStatus
-  case object Connected extends ConnectionStatus
-  case object SessionStarted extends ConnectionStatus
-  case class Error(error: Errors) extends ConnectionStatus
+sealed trait ConnectionState
+object ConnectionState {
+  case object Disconnected extends ConnectionState
+  case class Connecting(nextDelay: FiniteDuration, retriesSoFar: Int) extends ConnectionState
+  case object Connected extends ConnectionState
+  case object SessionStarted extends ConnectionState
+  case class Error(error: Errors) extends ConnectionState
 
-  implicit val showTransportStatus: Show[ConnectionStatus] = Show.show {
+  implicit val showTransportStatus: Show[ConnectionState] = Show.show {
     case Disconnected     => "Disconnected"
     case Connecting(_, _) => s"Connecting"
     case Connected        => "Connected"

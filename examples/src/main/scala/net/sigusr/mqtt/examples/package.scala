@@ -18,8 +18,8 @@ package net.sigusr.mqtt
 
 import cats.effect.Sync
 import cats.implicits._
-import net.sigusr.mqtt.api.ConnectionStatus
-import net.sigusr.mqtt.api.ConnectionStatus.{Connected, Connecting, Disconnected, Error, SessionStarted}
+import net.sigusr.mqtt.api.ConnectionState
+import net.sigusr.mqtt.api.ConnectionState.{Connected, Connecting, Disconnected, Error, SessionStarted}
 import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
 
 package object examples {
@@ -30,7 +30,7 @@ package object examples {
 
   def putStrLn[F[_]: Sync](s: String): F[Unit] = Sync[F].delay(println(s))
 
-  def logSessionStatus[F[_]: Sync]: ConnectionStatus => F[ConnectionStatus] =
+  def logSessionStatus[F[_]: Sync]: ConnectionState => F[ConnectionState] =
     s =>
       (s match {
         case Error(ConnectionFailure(reason)) =>
@@ -49,7 +49,7 @@ package object examples {
           putStrLn(s"${Console.BLUE}Session started${Console.RESET}")
       }) >> Sync[F].pure(s)
 
-  def onSessionError[F[_]: Sync]: ConnectionStatus => F[Unit] = {
+  def onSessionError[F[_]: Sync]: ConnectionState => F[Unit] = {
     case Error(e) => Sync[F].raiseError(e)
     case _        => Sync[F].pure(())
   }

@@ -20,10 +20,10 @@ import cats.effect.{Concurrent, ContextShift, Resource, Timer}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
-import net.sigusr.mqtt.api.ConnectionStatus.Disconnected
+import net.sigusr.mqtt.api.ConnectionState.Disconnected
 import net.sigusr.mqtt.api.Errors.ProtocolError
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
-import net.sigusr.mqtt.api.{ConnectionStatus, QualityOfService}
+import net.sigusr.mqtt.api.{ConnectionState, QualityOfService}
 import net.sigusr.mqtt.impl.frames.Builders._
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Result.QoS
@@ -55,7 +55,7 @@ trait Session[F[_]] {
       retain: Boolean = false
   ): F[Unit]
 
-  def state: SignallingRef[F, ConnectionStatus]
+  def state: SignallingRef[F, ConnectionState]
 
 }
 
@@ -78,7 +78,7 @@ object Session {
     for {
 
       ids <- IdGenerator[F]
-      stateSignal <- SignallingRef[F, ConnectionStatus](Disconnected)
+      stateSignal <- SignallingRef[F, ConnectionState](Disconnected)
       protocol <- Protocol(sessionConfig, transportConfig, stateSignal)
 
     } yield (
@@ -112,7 +112,7 @@ object Session {
               } yield ()
           }
 
-        override val state: SignallingRef[F, ConnectionStatus] = stateSignal
+        override val state: SignallingRef[F, ConnectionState] = stateSignal
       },
       disconnect(ids, protocol)
     )
