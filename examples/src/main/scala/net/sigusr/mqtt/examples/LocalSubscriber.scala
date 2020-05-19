@@ -21,9 +21,10 @@ import java.util.concurrent.TimeUnit
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
-import net.sigusr.mqtt.api.{Message, QualityOfService, Session, SessionConfig}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
-import net.sigusr.mqtt.impl.protocol.TransportConfig
+import net.sigusr.mqtt.api.RetryConfig.Custom
+import net.sigusr.mqtt.api._
+import retry.RetryPolicies
 import zio.duration.Duration
 import zio.interop.catz._
 import zio.interop.catz.implicits._
@@ -46,8 +47,20 @@ object LocalSubscriber extends App {
   private val unsubscribedTopics: Vector[String] = Vector("AtMostOnce", "AtLeastOnce", "ExactlyOnce")
 
   override def run(args: List[String]): ZIO[ZEnv, Nothing, Int] = {
+    val retryConfig: Custom[Task] = Custom[Task](
+      RetryPolicies
+        .limitRetries[Task](5)
+        .join(RetryPolicies.fullJitter[Task](2.seconds))
+    )
     val transportConfig =
-      TransportConfig("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true)
+      TransportConfig[Task](
+        "localhost",
+        1883,
+        Some(Int.MaxValue.seconds),
+        Some(3.seconds),
+        retryConfig = retryConfig,
+        traceMessages = true
+      )
     val sessionConfig =
       SessionConfig(s"$localSubscriber", cleanSession = false, user = Some(localSubscriber), password = Some("yolo"))
     Session[Task](transportConfig, sessionConfig).use { session =>

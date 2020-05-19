@@ -25,19 +25,9 @@ import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
 import net.sigusr.mqtt.impl.frames.Builders._
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Result.QoS
-import net.sigusr.mqtt.impl.protocol.{DEFAULT_KEEP_ALIVE, IdGenerator, Protocol, TransportConfig}
+import net.sigusr.mqtt.impl.protocol.{IdGenerator, Protocol}
 
-sealed case class Will(retain: Boolean, qos: QualityOfService, topic: String, message: String)
 sealed case class Message(topic: String, payload: Vector[Byte])
-
-sealed case class SessionConfig(
-    clientId: String,
-    keepAlive: Int = DEFAULT_KEEP_ALIVE,
-    cleanSession: Boolean = true,
-    will: Option[Will] = None,
-    user: Option[String] = None,
-    password: Option[String] = None
-)
 
 trait Session[F[_]] {
 
@@ -61,7 +51,7 @@ trait Session[F[_]] {
 object Session {
 
   def apply[F[_]: Concurrent: Timer: ContextShift](
-      transportConfig: TransportConfig,
+      transportConfig: TransportConfig[F],
       sessionConfig: SessionConfig
   ): Resource[F, Session[F]] = Resource(fromTransport(transportConfig, sessionConfig))
 
@@ -71,7 +61,7 @@ object Session {
   }
 
   private def fromTransport[F[_]: Concurrent: Timer: ContextShift](
-      transportConfig: TransportConfig,
+      transportConfig: TransportConfig[F],
       sessionConfig: SessionConfig
   ): F[(Session[F], F[Unit])] =
     for {

@@ -21,8 +21,7 @@ import cats.implicits._
 import fs2.Stream
 import monix.eval.{Task, TaskApp}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
-import net.sigusr.mqtt.api.{Session, SessionConfig}
-import net.sigusr.mqtt.impl.protocol.TransportConfig
+import net.sigusr.mqtt.api.{Session, SessionConfig, TransportConfig}
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -47,7 +46,7 @@ object LocalPublisher extends TaskApp {
     if (args.nonEmpty) {
       val messages = args.toVector
       val transportConfig =
-        TransportConfig("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true)
+        TransportConfig[Task]("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true)
       val sessionConfig = SessionConfig(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
       Session[Task](transportConfig, sessionConfig)
         .use { session =>

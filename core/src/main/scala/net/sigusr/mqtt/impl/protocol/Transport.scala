@@ -26,9 +26,9 @@ import fs2.concurrent.SignallingRef
 import fs2.io.tcp.{Socket, SocketGroup}
 import fs2.{Pipe, Stream}
 import net.sigusr.mqtt.api.ConnectionFailureReason.TransportError
-import net.sigusr.mqtt.api.ConnectionState
 import net.sigusr.mqtt.api.ConnectionState.{Connected, Connecting, Disconnected, Error}
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
+import net.sigusr.mqtt.api.{ConnectionState, RetryConfig, TransportConfig}
 import net.sigusr.mqtt.impl.frames.Frame
 import net.sigusr.mqtt.impl.protocol.Transport.Direction.{In, Out}
 import retry.RetryDetails.{GivingUp, WillDelayAndRetry}
@@ -37,17 +37,6 @@ import scodec.Codec
 import scodec.stream.{StreamDecoder, StreamEncoder}
 
 import scala.concurrent.duration._
-
-sealed case class TransportConfig(
-    host: String,
-    port: Int,
-    readTimeout: Option[FiniteDuration] = None,
-    writeTimeout: Option[FiniteDuration] = None,
-    numReadBytes: Int = 4096,
-    maxRetries: Int = 5,
-    baseDelay: FiniteDuration = 2.seconds,
-    traceMessages: Boolean = false
-)
 
 trait Transport[F[_]] {}
 
@@ -69,22 +58,11 @@ object Transport {
       } yield frame
 
   private def connect[F[_]: Concurrent: ContextShift: Timer](
-      transportConfig: TransportConfig,
+      transportConfig: TransportConfig[F],
       stateSignal: SignallingRef[F, ConnectionState],
       in: Pipe[F, Frame, Unit],
       out: Stream[F, Frame]
   ): F[Fiber[F, Unit]] = {
-
-    def publishError(
-        stateSignal: SignallingRef[F, ConnectionState]
-    )(err: Throwable, details: RetryDetails): F[Unit] =
-      details match {
-        case WillDelayAndRetry(nextDelay: FiniteDuration, retriesSoFar: Int, _) =>
-          stateSignal.set(Connecting(nextDelay, retriesSoFar))
-
-        case GivingUp(_, _) =>
-          stateSignal.set(Error(ConnectionFailure(TransportError(err))))
-      }
 
     def outgoing(socket: Socket[F]) =
       out
@@ -111,11 +89,18 @@ object Transport {
 
     def loop(): F[Unit] = {
 
-      val policy: RetryPolicy[F] = RetryPolicies
-        .limitRetries[F](transportConfig.maxRetries)
-        .join(RetryPolicies.fibonacciBackoff(transportConfig.baseDelay))
+      val policy: RetryPolicy[F] = RetryConfig.policyOf[F](transportConfig.retryConfig)
 
-      retryingOnAllErrors(policy, publishError(stateSignal)) {
+      def publishError(err: Throwable, details: RetryDetails): F[Unit] =
+        details match {
+          case WillDelayAndRetry(nextDelay: FiniteDuration, retriesSoFar: Int, _) =>
+            stateSignal.set(Connecting(nextDelay, retriesSoFar))
+
+          case GivingUp(_, _) =>
+            stateSignal.set(Error(ConnectionFailure(TransportError(err))))
+        }
+
+      retryingOnAllErrors(policy, publishError) {
         Blocker[F].use { blocker =>
           SocketGroup[F](blocker).use { socketGroup =>
             socketGroup.client[F](new InetSocketAddress(transportConfig.host, transportConfig.port)).use { socket =>
@@ -133,7 +118,7 @@ object Transport {
   }
 
   def apply[F[_]: Concurrent: ContextShift: Timer](
-      transportConfig: TransportConfig,
+      transportConfig: TransportConfig[F],
       in: Pipe[F, Frame, Unit],
       out: Stream[F, Frame],
       stateSignal: SignallingRef[F, ConnectionState]
