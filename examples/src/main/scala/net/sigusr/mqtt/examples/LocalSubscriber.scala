@@ -56,8 +56,6 @@ object LocalSubscriber extends App {
       TransportConfig[Task](
         "localhost",
         1883,
-        Some(Int.MaxValue.seconds),
-        Some(3.seconds),
         retryConfig = retryConfig,
         traceMessages = true
       )

@@ -46,7 +46,7 @@ object LocalPublisher extends TaskApp {
     if (args.nonEmpty) {
       val messages = args.toVector
       val transportConfig =
-        TransportConfig[Task]("localhost", 1883, Some(Int.MaxValue.seconds), Some(3.seconds), traceMessages = true)
+        TransportConfig[Task]("localhost", 1883, traceMessages = true)
       val sessionConfig = SessionConfig(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
       Session[Task](transportConfig, sessionConfig)
         .use { session =>

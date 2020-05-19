@@ -100,11 +100,18 @@ object Transport {
             stateSignal.set(Error(ConnectionFailure(TransportError(err))))
         }
 
+      def pump(socket: Socket[F]) =
+        stateSignal.set(Connected) >> Concurrent[F].race(outgoing(socket), incoming(socket))
+
       retryingOnAllErrors(policy, publishError) {
         Blocker[F].use { blocker =>
           SocketGroup[F](blocker).use { socketGroup =>
             socketGroup.client[F](new InetSocketAddress(transportConfig.host, transportConfig.port)).use { socket =>
-              stateSignal.set(Connected) >> Concurrent[F].race(outgoing(socket), incoming(socket))
+              transportConfig.tlsConfig.fold(pump(socket)) { tlsConfig =>
+                tlsConfig
+                  .contextOf(blocker)
+                  .flatMap(_.client(socket, tlsConfig.tlsParameters).use(pump))
+              }
             }
           }
         }
