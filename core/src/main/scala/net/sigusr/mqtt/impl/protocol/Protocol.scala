@@ -56,7 +56,8 @@ object Protocol {
         frameQueue: Queue[F, Frame],
         inFlightOutBound: AtomicMap[F, Int, Frame],
         pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
-        stateSignal: SignallingRef[F, ConnectionState]
+        stateSignal: SignallingRef[F, ConnectionState],
+        closeSignal: SignallingRef[F, Boolean]
     ): Pipe[F, Frame, Unit] = {
 
       def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] =
@@ -84,7 +85,7 @@ object Protocol {
                           .enqueue1(PubrecFrame(Header(), id))
                     ) >>
                       loop(tl, inFlightInBound + id)
-                  case (_, _) => Pull.eval(stateSignal.set(Error(ProtocolError))) // TODO Should disconnect
+                  case (_, _) => Pull.eval(stateSignal.set(Error(ProtocolError)) >> closeSignal.set(true))
                 }
 
               case PubackFrame(_: Header, messageIdentifier) =>
@@ -137,11 +138,13 @@ object Protocol {
                     loop(tl, inFlightInBound)
                 else
                   Pull.eval(
-                    stateSignal.set(Error(ConnectionFailure(ConnectionFailureReason.withValue(returnCode))))
-                  ) // TODO Should disconnect
+                    stateSignal.set(
+                      Error(ConnectionFailure(ConnectionFailureReason.withValue(returnCode)))
+                    ) >> closeSignal.set(true)
+                  )
 
               case _ =>
-                Pull.eval(stateSignal.set(Error(ProtocolError))) // TODO Should disconnect
+                Pull.eval(stateSignal.set(Error(ProtocolError)) >> closeSignal.set(true))
             }
 
           case None => Pull.done
@@ -190,13 +193,14 @@ object Protocol {
       inFlightOutBound <- AtomicMap[F, Int, Frame]
       pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
       stateSignal <- SignallingRef[F, ConnectionState](Disconnected)
+      closeSignal <- SignallingRef[F, Boolean](false)
 
       inbound: Pipe[F, Frame, Unit] =
-        inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults, stateSignal)
+        inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults, stateSignal, closeSignal)
       outbound: Stream[F, Frame] =
         frameQueue.dequeue.through(outboundMessagesInterpreter(inFlightOutBound, stateSignal, pingTicker))
 
-      _ <- Transport[F](transportConfig, inbound, outbound, stateSignal) // TODO: cancel or ressource?
+      _ <- Transport[F](transportConfig, inbound, outbound, stateSignal, closeSignal) // TODO: cancel or ressource?
 
     } yield new Protocol[F] {
 

@@ -63,6 +63,7 @@ object Transport {
   private def connect[F[_]: Concurrent: ContextShift: Timer](
       transportConfig: TransportConfig[F],
       stateSignal: SignallingRef[F, ConnectionState],
+      closeSignal: SignallingRef[F, Boolean],
       in: Pipe[F, Frame, Unit],
       out: Stream[F, Frame]
   ): F[Fiber[F, Unit]] = {
@@ -72,6 +73,7 @@ object Transport {
         .through(tracingPipe(Out(transportConfig.traceMessages)))
         .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
         .through(socket.writes(transportConfig.writeTimeout))
+        .interruptWhen(closeSignal)
         .onComplete {
           Stream.eval(stateSignal.set(Disconnected))
         }
@@ -84,6 +86,7 @@ object Transport {
         .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
         .through(tracingPipe(In(transportConfig.traceMessages)))
         .through(in)
+        .interruptWhen(closeSignal)
         .onComplete {
           Stream.eval(stateSignal.set(Disconnected))
         }
@@ -131,11 +134,12 @@ object Transport {
       transportConfig: TransportConfig[F],
       in: Pipe[F, Frame, Unit],
       out: Stream[F, Frame],
-      stateSignal: SignallingRef[F, ConnectionState]
+      stateSignal: SignallingRef[F, ConnectionState],
+      closeSignal: SignallingRef[F, Boolean]
   ): F[Transport[F]] =
     for {
 
-      _ <- connect(transportConfig, stateSignal, in, out)
+      _ <- connect(transportConfig, stateSignal, closeSignal, in, out)
 
     } yield new Transport[F] {}
 }
