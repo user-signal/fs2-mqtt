@@ -50,7 +50,10 @@ object Transport {
     val values: IndexedSeq[Direction] = findValues
   }
 
-  private def tracingPipe[F[_]: Concurrent: ContextShift](d: Direction): Pipe[F, Frame, Frame] =
+  private def traceTLS[F[_]: Concurrent](b: Boolean) =
+    if (b) Some((m: String) => putStrLn(s"${Console.MAGENTA}[TLS] $m${Console.RESET}")) else None
+
+  private def tracingPipe[F[_]: Concurrent](d: Direction): Pipe[F, Frame, Frame] =
     frames =>
       for {
         frame <- frames
@@ -110,7 +113,7 @@ object Transport {
               transportConfig.tlsConfig.fold(pump(socket)) { tlsConfig =>
                 tlsConfig
                   .contextOf(blocker)
-                  .flatMap(_.client(socket, tlsConfig.tlsParameters).use(pump))
+                  .flatMap(_.client(socket, tlsConfig.tlsParameters, traceTLS(transportConfig.traceMessages)).use(pump))
               }
             }
           }
