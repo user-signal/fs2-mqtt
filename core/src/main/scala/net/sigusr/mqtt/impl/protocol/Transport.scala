@@ -68,30 +68,31 @@ object Transport {
       out: Stream[F, Frame]
   ): F[Fiber[F, Unit]] = {
 
-    def outgoing(socket: Socket[F]) =
+    def outgoing(socket: Socket[F]): F[Unit] =
       out
         .through(tracingPipe(Out(transportConfig.traceMessages)))
         .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
         .through(socket.writes(transportConfig.writeTimeout))
-        .interruptWhen(closeSignal)
         .onComplete {
           Stream.eval(stateSignal.set(Disconnected))
         }
         .compile
         .drain
 
-    def incoming(socket: Socket[F]) =
+    def incoming(socket: Socket[F]): F[Unit] =
       socket
         .reads(transportConfig.numReadBytes, transportConfig.readTimeout)
         .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
         .through(tracingPipe(In(transportConfig.traceMessages)))
         .through(in)
-        .interruptWhen(closeSignal)
         .onComplete {
           Stream.eval(stateSignal.set(Disconnected))
         }
         .compile
         .drain
+
+    def closeSignalWatcher(socket: Socket[F]) =
+      closeSignal.discrete.evalMap(if (_) socket.close else Concurrent[F].pure(())).compile.drain
 
     def loop(): F[Unit] = {
 
@@ -107,7 +108,10 @@ object Transport {
         }
 
       def pump(socket: Socket[F]) =
-        stateSignal.set(Connected) >> Concurrent[F].race(outgoing(socket), incoming(socket))
+        for {
+          _ <- stateSignal.set(Connected)
+          _ <- outgoing(socket).race(incoming(socket)).race(closeSignalWatcher(socket))
+        } yield ()
 
       retryingOnAllErrors(policy, publishError) {
         Blocker[F].use { blocker =>
@@ -122,7 +126,7 @@ object Transport {
           }
         }
       } >> stateSignal.get.flatMap {
-        case Disconnected => loop()
+        case Disconnected => closeSignal.set(false) >> loop()
         case _            => Concurrent[F].pure(())
       }
     }

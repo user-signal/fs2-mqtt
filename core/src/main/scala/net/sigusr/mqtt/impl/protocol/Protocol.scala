@@ -16,7 +16,7 @@
 
 package net.sigusr.mqtt.impl.protocol
 
-import cats.effect.concurrent.Deferred
+import cats.effect.concurrent.{Deferred, Ref}
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
 import fs2.concurrent.{Queue, SignallingRef}
@@ -57,7 +57,8 @@ object Protocol {
         inFlightOutBound: AtomicMap[F, Int, Frame],
         pendingResults: AtomicMap[F, Int, Deferred[F, Result]],
         stateSignal: SignallingRef[F, ConnectionState],
-        closeSignal: SignallingRef[F, Boolean]
+        closeSignal: SignallingRef[F, Boolean],
+        pingAcknowledged: Ref[F, Boolean]
     ): Pipe[F, Frame, Unit] = {
 
       def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] =
@@ -114,9 +115,7 @@ object Protocol {
                   loop(tl, inFlightInBound)
 
               case PingRespFrame(_: Header) =>
-                // TODO Should disconnect when more than a PingReq is not acknowledged
-                Pull.eval(putStrLn(s" ${Console.CYAN}Todo: Handle ping responses properly${Console.RESET}")) >>
-                  loop(tl, inFlightInBound)
+                Pull.eval(pingAcknowledged.set(true)) >> loop(tl, inFlightInBound)
 
               case UnsubackFrame(_: Header, messageIdentifier) =>
                 Pull.eval(
@@ -184,19 +183,36 @@ object Protocol {
           case _ => Stream.emit(None)
         }.unNone
 
+    def pingOrDisconnect(
+        pingAcknowledged: Ref[F, Boolean],
+        frameQueue: Queue[F, Frame],
+        closeSignal: SignallingRef[F, Boolean]
+    ): F[Unit] =
+      pingAcknowledged.get >>= (if (_) pingAcknowledged.set(false) >> frameQueue.enqueue1(PingReqFrame(Header()))
+                                else pingAcknowledged.set(true) >> closeSignal.set(true))
+
     for {
 
       messageQueue <- Queue.bounded[F, Message](QUEUE_SIZE)
       frameQueue <- Queue.bounded[F, Frame](QUEUE_SIZE)
       stopSignal <- SignallingRef[F, Boolean](false)
-      pingTicker <- Ticker(sessionConfig.keepAlive.toLong, frameQueue.enqueue1(PingReqFrame(Header())))
       inFlightOutBound <- AtomicMap[F, Int, Frame]
       pendingResults <- AtomicMap[F, Int, Deferred[F, Result]]
       stateSignal <- SignallingRef[F, ConnectionState](Disconnected)
       closeSignal <- SignallingRef[F, Boolean](false)
+      pingAcknowledged <- Ref.of[F, Boolean](true)
+      pingTicker <- Ticker(sessionConfig.keepAlive.toLong, pingOrDisconnect(pingAcknowledged, frameQueue, closeSignal))
 
-      inbound: Pipe[F, Frame, Unit] =
-        inboundMessagesInterpreter(messageQueue, frameQueue, inFlightOutBound, pendingResults, stateSignal, closeSignal)
+      inbound: Pipe[F, Frame, Unit] = inboundMessagesInterpreter(
+        messageQueue,
+        frameQueue,
+        inFlightOutBound,
+        pendingResults,
+        stateSignal,
+        closeSignal,
+        pingAcknowledged
+      )
+
       outbound: Stream[F, Frame] =
         frameQueue.dequeue.through(outboundMessagesInterpreter(inFlightOutBound, stateSignal, pingTicker))
 

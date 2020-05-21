@@ -49,10 +49,11 @@ object LocalPublisher extends TaskApp {
         TransportConfig[Task](
           "localhost",
           1883,
-          tlsConfig = Some(TLSConfig(TLSContextKind.System)),
+//          tlsConfig = Some(TLSConfig(TLSContextKind.System)),
           traceMessages = true
         )
-      val sessionConfig = SessionConfig(s"$localPublisher", user = Some(localPublisher), password = Some("yala"))
+      val sessionConfig =
+        SessionConfig(s"$localPublisher", user = Some(localPublisher), password = Some("yala"), keepAlive = 5)
       Session[Task](transportConfig, sessionConfig)
         .use { session =>
           val sessionStatus = session.state.discrete

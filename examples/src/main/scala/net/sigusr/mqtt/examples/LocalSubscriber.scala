@@ -56,12 +56,18 @@ object LocalSubscriber extends App {
       TransportConfig[Task](
         "localhost",
         1883,
-        tlsConfig = Some(TLSConfig(TLSContextKind.System)),
+//        tlsConfig = Some(TLSConfig(TLSContextKind.System)),
         retryConfig = retryConfig,
         traceMessages = true
       )
     val sessionConfig =
-      SessionConfig(s"$localSubscriber", cleanSession = false, user = Some(localSubscriber), password = Some("yolo"))
+      SessionConfig(
+        s"$localSubscriber",
+        cleanSession = false,
+        user = Some(localSubscriber),
+        password = Some("yolo"),
+        keepAlive = 5
+      )
     Session[Task](transportConfig, sessionConfig).use { session =>
       SignallingRef[Task, Boolean](false).flatMap { stopSignal =>
         val sessionStatus = session.state.discrete
