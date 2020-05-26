@@ -3,9 +3,9 @@
 [apache-licence]: http://github.com/user-signal/fs2-mqtt/blob/master/LICENSE
 [build-status-icon]: https://travis-ci.org/user-signal/fs2-mqtt.svg?branch=master
 [build-status]: https://travis-ci.org/user-signal/fs2-mqtt
-[cats-effects-IO]: https://typelevel.org/cats-effect/datatypes/io.html
-[cats-effects-retry]: https://cb372.github.io/cats-retry
-[cats-effets]: https://github.com/typelevel/cats-effect
+[cats-effect-IO]: https://typelevel.org/cats-effect/datatypes/io.html
+[cats-effect-retry]: https://cb372.github.io/cats-retry
+[cats-effet]: https://github.com/typelevel/cats-effect
 [cats]: https://typelevel.org/cats
 [ci]: https://travis-ci.org/user-signal/fs2-mqtt
 [coverage-status-icon]: https://coveralls.io/repos/user-signal/fs2-mqtt/badge.png?branch=master
@@ -38,12 +38,12 @@ this part of the work considerably easier, with a concise and very readable outc
 
 More recently, while getting more and more interest in pure functional programming in *Scala*, in had the chance to see
 this amazing talk on [Skunk][skunk-talk] from [@tpolecat][tpolecat]. It's about 
-building, from the ground up, a data access library for *Postgres* based on [FS2][fs2]and… *scodec*.
+building, from the ground up, a data access library for *Postgres* based on [FS2][fs2] and… *scodec*.
 
 ## Oops!… I did it again.
 
 I rushed to [Skunk][skunk-repo], which as been inspirational, and took the opportunity of these 
-lock down days to learn a lot about [cats][cats], [cats effects][cats-effets] 
+lock down days to learn a lot about [cats][cats], [cats effects][cats-effet] 
 and of course *FS2*. I even found the integration between *FS2* and *scodec*, [scodec-stream][scodec-stream], 
 to be utterly useful.
 
@@ -57,10 +57,14 @@ This library is build in the *tagless final* style in order to make it, as much 
 client code using it. It's internals are nevertheless mainly build around *FS2*, *cats effetcs* typeclasses and concurrency 
 primitives.  
 
-It implements almost all the *MQTT* `3.1.1` protocol and allows interacting with a [Mosquitto][mosquitto] 
-broker. It does not support *MQTT* `5` and, to tell the truth, this is not even envisioned! Still, there's work ahead:
- * even if it includes the required message exchanges for QoS 1 and 2, there is no replay of in flight messages,
- * the connection/session management needs a lot of (re)design,
+It implements almost all the *MQTT* `3.1.1` protocol, managing (re)connections and in flight messages, and allows interacting 
+with a [Mosquitto][mosquitto] broker. It does not support *MQTT* `5` and, to tell the truth, this is not even envisioned! 
+Still, there's work ahead:
+ * TLS support. Well it is almost here, but depends on [this](https://github.com/functional-streams-for-scala/fs2/issues/1873)
+ * finer grained configuration (e. g. number of in flight messages)
+ * a proper documentation
+ * shame on me, far more test coverage /o\
+ * performance evaluation
  * cross builds would be nice… even considering *Scala.js*,
  * …
 
@@ -96,11 +100,11 @@ Roughly speaking this library depends on:
  * [Scala][scala] of course, but not [Scala.js][scala-js] even thought this should be fairly easy…
  * [FS2][fs2] 
  * [scodec][scodec] and [scodec-stream][scodec-stream]
- * [Cats effects][cats-effets] for some internal concurrency stuff
- * [Cats effects retry][cats-effects-retry] to manage connection attempts
+ * [Cats effect][cats-effet] for some internal concurrency stuff
+ * [Cats effects retry][cats-effect-retry] to manage connection attempts
  * [Monocle][monocle]… because why not! 
  
-This library should work seamlessly with various compatible IO monads: [cats effects IO][cats-effects-IO] 
+This library should work seamlessly with various compatible IO monads: [cats effects IO][cats-effect-IO] 
 of course, but [Monix][monix] and [ZIO][zio] as well as both support *cats effects* typeclasses.
 
 ## License
