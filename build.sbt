@@ -3,26 +3,66 @@ import sbt._
 
 lazy val IntegrationTest = config("it").extend(Test)
 
+val filterConsoleScalacOptions = { options: Seq[String] =>
+  options.filterNot(
+    Set(
+      "-Xfatal-warnings",
+      "-Werror",
+      "-Wdead-code",
+      "-Wunused:imports",
+      "-Ywarn-unused:imports",
+      "-Ywarn-unused-import",
+      "-Ywarn-dead-code"
+    )
+  )
+}
+
 lazy val commonSettings = Seq(
   organization := "net.sigusr",
   scalaVersion := "2.13.2",
-  scalacOptions in Test ++= Seq("-Yrangepos"),
-  scalacOptions ++= Seq(
-    "-language:implicitConversions",
-    "-unchecked",
-    "-feature",
-    "-deprecation",
+  scalacOptions := Seq(
     "-encoding",
-    "UTF-8",
+    "utf-8",
+    "-explaintypes",
+    "-feature",
     "-language:existentials",
+    "-language:experimental.macros",
     "-language:higherKinds",
     "-language:implicitConversions",
+    "-Ymacro-annotations",
     "-Xfatal-warnings",
-    "-Xlint:_",
-    "-Ywarn-dead-code",
-    "-Ywarn-numeric-widen",
-    "-Ywarn-value-discard"
-  )
+    "-unchecked",
+    "-Xcheckinit",
+    "-Xlint:adapted-args",
+    "-Xlint:constant",
+    "-Xlint:delayedinit-select",
+    "-Xlint:deprecation",
+    "-Xlint:doc-detached",
+    "-Xlint:inaccessible",
+    "-Xlint:infer-any",
+    "-Xlint:missing-interpolator",
+    "-Xlint:nullary-override",
+    "-Xlint:nullary-unit",
+    "-Xlint:option-implicit",
+    "-Xlint:package-object-classes",
+    "-Xlint:poly-implicit-overload",
+    "-Xlint:private-shadow",
+    "-Xlint:stars-align",
+    "-Xlint:type-parameter-shadow",
+    "-Wdead-code",
+    "-Wextra-implicit",
+    "-Wnumeric-widen",
+    "-Wunused:implicits",
+    "-Wunused:imports",
+    "-Wunused:locals",
+    "-Wunused:params",
+    "-Wunused:patvars",
+    "-Wunused:privates",
+    "-Wvalue-discard"
+  ),
+  scalacOptions in (Compile, console) ~= filterConsoleScalacOptions,
+  scalacOptions in Test ++= Seq("-Yrangepos"),
+  scalacOptions in (Test, console) ~= filterConsoleScalacOptions
 )
 
 lazy val root = (project in file("."))
