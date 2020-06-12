@@ -56,7 +56,9 @@ object LocalSubscriber extends App {
       TransportConfig[Task](
         "localhost",
         1883,
-//        tlsConfig = Some(TLSConfig(TLSContextKind.System)),
+        // TLS support looks like
+        // 8883,
+        // tlsConfig = Some(TLSConfig(TLSContextKind.System)),
         retryConfig = retryConfig,
         traceMessages = true
       )

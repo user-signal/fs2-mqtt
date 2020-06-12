@@ -49,7 +49,9 @@ object LocalPublisher extends TaskApp {
         TransportConfig[Task](
           "localhost",
           1883,
-//          tlsConfig = Some(TLSConfig(TLSContextKind.System)),
+          // TLS support looks like
+          // 8883,
+          // tlsConfig = Some(TLSConfig(TLSContextKind.System)),
           traceMessages = true
         )
       val sessionConfig =

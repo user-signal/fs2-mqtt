@@ -60,7 +60,6 @@ primitives.
 It implements almost all the *MQTT* `3.1.1` protocol, managing (re)connections and in flight messages, and allows interacting 
 with a [Mosquitto][mosquitto] broker. It does not support *MQTT* `5` and, to tell the truth, this is not even envisioned! 
 Still, there's work ahead:
- * TLS support. Well it is almost here, but depends on [this](https://github.com/functional-streams-for-scala/fs2/issues/1873)
  * finer grained configuration (e. g. number of in flight messages)
  * a proper documentation
  * shame on me, far more test coverage /o\
