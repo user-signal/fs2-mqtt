@@ -35,10 +35,10 @@ object IdGenerator {
   private def idQueue[F[_]: Concurrent](q: Queue[F, Int]): F[Fiber[F, Unit]] = {
     def go(v: Int): Stream[Pure, Int] =
       v match {
-        case 65535 => Stream.emit(0) ++ go(1)
+        case 65535 => Stream.emit(1) ++ go(2)
         case _     => Stream.emit(v) ++ go(v + 1)
       }
-    go(0).through(q.enqueue(_)).compile.drain.start
+    go(1).through(q.enqueue(_)).compile.drain.start
   }
 
   def apply[F[_]: Concurrent]: F[IdGenerator[F]] =
