@@ -89,7 +89,7 @@ to Maven Central. In this case just add,
 scalaVersion := "2.13.2"
 
 libraryDependencies ++= Seq(
-    "net.sigusr" %% "fs2-mqtt" % "0.4.0"
+    "net.sigusr" %% "fs2-mqtt" % "0.4.1"
 )
 ```
 

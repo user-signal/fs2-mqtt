@@ -75,19 +75,19 @@ lazy val core = project
   .settings(
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := """fs2-mqtt""",
-      version := "0.4.0",
+      version := "0.4.1",
       libraryDependencies ++= Seq(
-        "com.beachape" %% "enumeratum" % "1.6.0",
-        "org.specs2" %% "specs2-core" % "4.9.4" % "test",
+        "com.beachape" %% "enumeratum" % "1.6.1",
+        "org.specs2" %% "specs2-core" % "4.10.5" % "test",
         "org.scodec" %% "scodec-core" % "1.11.7",
         "org.scodec" %% "scodec-stream" % "2.0.0",
-        "co.fs2" %% "fs2-core" % "2.4.0",
-        "co.fs2" %% "fs2-io" % "2.4.0",
-        "org.typelevel" %% "cats-core" % "2.1.1",
-        "org.typelevel" %% "cats-effect" % "2.1.3",
-        "com.github.cb372" %% "cats-retry" % "1.1.0",
-        "com.github.julien-truffaut" %% "monocle-core" % "2.0.3",
-        "com.github.julien-truffaut" %% "monocle-macro" % "2.0.3"
+        "co.fs2" %% "fs2-core" % "2.4.4",
+        "co.fs2" %% "fs2-io" % "2.4.4",
+        "org.typelevel" %% "cats-core" % "2.2.0",
+        "org.typelevel" %% "cats-effect" % "2.2.0",
+        "com.github.cb372" %% "cats-retry" % "2.0.0",
+        "com.github.julien-truffaut" %% "monocle-core" % "2.1.0",
+        "com.github.julien-truffaut" %% "monocle-macro" % "2.1.0"
       )
     )
   )
