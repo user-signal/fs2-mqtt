@@ -16,8 +16,6 @@
 
 package net.sigusr.mqtt.examples
 
-import java.util.concurrent.TimeUnit
-
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
@@ -30,6 +28,7 @@ import zio.interop.catz._
 import zio.interop.catz.implicits._
 import zio.{App, Task, ZEnv, ZIO}
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 object LocalSubscriber extends App {
 
@@ -55,10 +54,10 @@ object LocalSubscriber extends App {
     val transportConfig =
       TransportConfig[Task](
         "localhost",
-//        1883,
+        1883,
         // TLS support looks like
-         8883,
-         tlsConfig = Some(TLSConfig(TLSContextKind.System)),
+        // 8883,
+        // tlsConfig = Some(TLSConfig(TLSContextKind.System)),
         retryConfig = retryConfig,
         traceMessages = true
       )
@@ -71,31 +70,34 @@ object LocalSubscriber extends App {
         keepAlive = 5
       )
     Session[Task](transportConfig, sessionConfig).use { session =>
-      SignallingRef[Task, Boolean](false).flatMap { stopSignal =>
-        val sessionStatus = session.state.discrete
-          .evalMap(logSessionStatus[Task])
-          .evalMap(onSessionError[Task])
-          .interruptWhen(stopSignal)
-          .compile
-          .drain
-        val subscriber = for {
-          s <- session.subscribe(subscribedTopics)
-          _ <- s.traverse { p =>
-            putStrLn[Task](
-              s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS " +
-                s"${Console.CYAN}${p._2.show}${Console.RESET}"
-            )
-          }
-          _ <- ZIO.sleep(Duration(23, TimeUnit.SECONDS))
-          _ <- session.unsubscribe(unsubscribedTopics)
-          _ <- putStrLn[Task](s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
-          _ <- stopSignal.discrete.compile.drain
-        } yield ()
-        val reader = session.messages().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
-        for {
-          _ <- sessionStatus <&> subscriber.race(reader)
-        } yield ()
-      }
+      SignallingRef[Task, Boolean](false)
+        .flatMap { stopSignal =>
+          val sessionStatus = session.state.discrete
+            .evalMap(logSessionStatus[Task])
+            .evalMap(onSessionError[Task])
+            .interruptWhen(stopSignal)
+            .compile
+            .drain
+          val subscriber = for {
+            s <- session.subscribe(subscribedTopics)
+            _ <- s.traverse { p =>
+              putStrLn[Task](
+                s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS " +
+                  s"${Console.CYAN}${p._2.show}${Console.RESET}"
+              )
+            }
+            _ <- ZIO.sleep(Duration(23, TimeUnit.SECONDS))
+            _ <- session.unsubscribe(unsubscribedTopics)
+            _ <-
+              putStrLn[Task](s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
+            _ <- stopSignal.discrete.compile.drain
+          } yield ()
+          val reader = session.messages().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
+          for {
+            _ <- sessionStatus <&> subscriber.race(reader)
+          } yield ()
+        }
+        .asInstanceOf[Task[Boolean]]
     }
   }.fold(_ => Error, _ => Success)
 

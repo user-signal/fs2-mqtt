@@ -18,6 +18,7 @@ package net.sigusr.mqtt.impl.protocol
 
 sealed trait Result
 object Result {
-  case object Empty extends Result
   case class QoS(values: Vector[Int]) extends Result
+
+  case object Empty extends Result
 }

@@ -28,8 +28,6 @@ package object examples {
 
   val payload: String => Vector[Byte] = (_: String).getBytes("UTF-8").toVector
 
-  def putStrLn[F[_]: Sync](s: String): F[Unit] = Sync[F].delay(println(s))
-
   def logSessionStatus[F[_]: Sync]: ConnectionState => F[ConnectionState] =
     s =>
       (s match {
@@ -48,6 +46,8 @@ package object examples {
         case SessionStarted =>
           putStrLn(s"${Console.BLUE}Session started${Console.RESET}")
       }) >> Sync[F].pure(s)
+
+  def putStrLn[F[_]: Sync](s: String): F[Unit] = Sync[F].delay(println(s))
 
   def onSessionError[F[_]: Sync]: ConnectionState => F[Unit] = {
     case Error(e) => Sync[F].raiseError(e)

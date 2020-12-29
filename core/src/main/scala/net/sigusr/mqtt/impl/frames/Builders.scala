@@ -16,8 +16,8 @@
 
 package net.sigusr.mqtt.impl.frames
 
-import net.sigusr.mqtt.api.{QualityOfService, SessionConfig}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce}
+import net.sigusr.mqtt.api.{QualityOfService, SessionConfig}
 import scodec.bits.ByteVector
 
 object Builders {

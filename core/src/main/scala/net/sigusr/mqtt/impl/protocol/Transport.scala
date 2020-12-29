@@ -16,8 +16,6 @@
 
 package net.sigusr.mqtt.impl.protocol
 
-import java.net.InetSocketAddress
-
 import cats.effect.implicits._
 import cats.effect.{Blocker, Concurrent, ContextShift, Fiber, Timer}
 import cats.implicits._
@@ -36,6 +34,8 @@ import retry._
 import scodec.Codec
 import scodec.stream.{StreamDecoder, StreamEncoder}
 
+import java.net.InetSocketAddress
+import scala.collection.immutable
 import scala.concurrent.duration._
 
 trait Transport[F[_]] {}
@@ -47,7 +47,7 @@ object Transport {
     case class In(override val active: Boolean) extends Direction('←', Console.YELLOW, active)
     case class Out(override val active: Boolean) extends Direction('→', Console.GREEN, active)
 
-    val values: IndexedSeq[Direction] = findValues
+    val values: immutable.IndexedSeq[Direction] = findValues
   }
 
   private def traceTLS[F[_]: Concurrent](b: Boolean) =
@@ -57,7 +57,9 @@ object Transport {
     frames =>
       for {
         frame <- frames
-        _ <- Stream.eval(putStrLn(s" ${d.value} ${d.color}$frame${Console.RESET}")).whenA(d.active)
+        _ <-
+          if (d.active) Stream.eval(putStrLn(s" ${d.value} ${d.color}$frame${Console.RESET}"))
+          else Stream.eval(Concurrent[F].unit)
       } yield frame
 
   private def connect[F[_]: Concurrent: ContextShift: Timer](

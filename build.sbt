@@ -1,6 +1,9 @@
 import sbt.Keys._
 import sbt._
 
+lazy val scala213 = "2.13.4"
+lazy val scala212 = "2.12.12"
+
 lazy val IntegrationTest = config("it").extend(Test)
 
 val filterConsoleScalacOptions = { options: Seq[String] =>
@@ -19,7 +22,8 @@ val filterConsoleScalacOptions = { options: Seq[String] =>
 
 lazy val commonSettings = Seq(
   organization := "net.sigusr",
-  scalaVersion := "2.13.2",
+  crossScalaVersions := Seq(scala213, scala212),
+  scalaVersion := scala213,
   scalacOptions := Seq(
     "-encoding",
     "utf-8",
@@ -29,36 +33,23 @@ lazy val commonSettings = Seq(
     "-language:experimental.macros",
     "-language:higherKinds",
     "-language:implicitConversions",
-    "-Ymacro-annotations",
     "-Xfatal-warnings",
     "-unchecked",
     "-Xcheckinit",
     "-Xlint:adapted-args",
     "-Xlint:constant",
     "-Xlint:delayedinit-select",
-    "-Xlint:deprecation",
     "-Xlint:doc-detached",
     "-Xlint:inaccessible",
     "-Xlint:infer-any",
     "-Xlint:missing-interpolator",
-    "-Xlint:nullary-override",
     "-Xlint:nullary-unit",
     "-Xlint:option-implicit",
     "-Xlint:package-object-classes",
     "-Xlint:poly-implicit-overload",
     "-Xlint:private-shadow",
     "-Xlint:stars-align",
-    "-Xlint:type-parameter-shadow",
-    "-Wdead-code",
-    "-Wextra-implicit",
-    "-Wnumeric-widen",
-    "-Wunused:implicits",
-    "-Wunused:imports",
-    "-Wunused:locals",
-    "-Wunused:params",
-    "-Wunused:patvars",
-    "-Wunused:privates",
-    "-Wvalue-discard"
+    "-Xlint:type-parameter-shadow"
   ),
   scalacOptions in (Compile, console) ~= filterConsoleScalacOptions,
   scalacOptions in Test ++= Seq("-Yrangepos"),

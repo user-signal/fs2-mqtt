@@ -32,12 +32,6 @@ package object frames {
   val remainingLengthCodec = new RemainingLengthCodec
   val stringCodec: Codec[String] = variableSizeBytes(uint16, utf8)
   val bytePaddingCodec: Codec[Unit] = constant(bin"00000000")
-
-  private val publishFrame: Lens[PublishFrame, Boolean] = GenLens[PublishFrame](_.header.dup)
-  private val pubrelFrame: Lens[PubrelFrame, Boolean] = GenLens[PubrelFrame](_.header.dup)
-  private val subscribeFrame: Lens[SubscribeFrame, Boolean] = GenLens[SubscribeFrame](_.header.dup)
-  private val unsubscribeFrame: Lens[UnsubscribeFrame, Boolean] = GenLens[UnsubscribeFrame](_.header.dup)
-
   val setDupFlag: Frame => Frame = {
     case f0: PublishFrame     => publishFrame.set(true)(f0)
     case f1: PubrelFrame      => pubrelFrame.set(true)(f1)
@@ -45,4 +39,8 @@ package object frames {
     case f3: UnsubscribeFrame => unsubscribeFrame.set(true)(f3)
     case f: Frame             => f
   }
+  private val publishFrame: Lens[PublishFrame, Boolean] = GenLens[PublishFrame](_.header.dup)
+  private val pubrelFrame: Lens[PubrelFrame, Boolean] = GenLens[PubrelFrame](_.header.dup)
+  private val subscribeFrame: Lens[SubscribeFrame, Boolean] = GenLens[SubscribeFrame](_.header.dup)
+  private val unsubscribeFrame: Lens[UnsubscribeFrame, Boolean] = GenLens[UnsubscribeFrame](_.header.dup)
 }

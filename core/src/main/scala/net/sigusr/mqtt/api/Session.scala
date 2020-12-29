@@ -55,11 +55,6 @@ object Session {
       sessionConfig: SessionConfig
   ): Resource[F, Session[F]] = Resource(fromTransport(transportConfig, sessionConfig))
 
-  private def disconnect[F[_]: Concurrent](ids: IdGenerator[F], protocol: Protocol[F]) = {
-    val disconnectMessage = DisconnectFrame(Header())
-    ids.cancel *> protocol.send(disconnectMessage)
-  }
-
   private def fromTransport[F[_]: Concurrent: Timer: ContextShift](
       transportConfig: TransportConfig[F],
       sessionConfig: SessionConfig
@@ -104,4 +99,9 @@ object Session {
       },
       disconnect(ids, protocol)
     )
+
+  private def disconnect[F[_]: Concurrent](ids: IdGenerator[F], protocol: Protocol[F]) = {
+    val disconnectMessage = DisconnectFrame(Header())
+    ids.cancel *> protocol.send(disconnectMessage)
+  }
 }

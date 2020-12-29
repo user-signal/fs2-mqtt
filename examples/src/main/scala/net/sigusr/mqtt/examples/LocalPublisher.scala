@@ -29,16 +29,6 @@ import scala.util.Random
 object LocalPublisher extends TaskApp {
 
   private val random: Stream[Task, Int] = Stream.eval(Task.delay(Math.abs(Random.nextInt()))).repeat
-
-  private def ticks(): Stream[Task, Unit] =
-    random >>= { r =>
-      val interval = r % 2000 + 1000
-      Stream.sleep[Task](interval.milliseconds)
-    }
-
-  private def randomMessage(messages: Vector[String]): Stream[Task, String] =
-    random >>= (r => Stream.emit(messages(r % messages.length)))
-
   private val topics =
     Stream(("AtMostOnce", AtMostOnce), ("AtLeastOnce", AtLeastOnce), ("ExactlyOnce", ExactlyOnce)).repeat
 
@@ -48,10 +38,10 @@ object LocalPublisher extends TaskApp {
       val transportConfig =
         TransportConfig[Task](
           "localhost",
-//          1883,
+          1883,
           // TLS support looks like
-           8883,
-           tlsConfig = Some(TLSConfig(TLSContextKind.System)),
+          // 8883,
+          // tlsConfig = Some(TLSConfig(TLSContextKind.System)),
           traceMessages = true
         )
       val sessionConfig =
@@ -84,4 +74,13 @@ object LocalPublisher extends TaskApp {
     } else
       putStrLn[Task](s"${Console.RED}At least one or more « messages » should be provided.${Console.RESET}")
         .as(ExitCode.Error)
+
+  private def ticks(): Stream[Task, Unit] =
+    random.flatMap { r =>
+      val interval = r % 2000 + 1000
+      Stream.sleep[Task](interval.milliseconds)
+    }
+
+  private def randomMessage(messages: Vector[String]): Stream[Task, String] =
+    random.flatMap(r => Stream.emit(messages(r % messages.length)))
 }

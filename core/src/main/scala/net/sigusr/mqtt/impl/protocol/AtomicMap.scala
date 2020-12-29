@@ -36,13 +36,13 @@ object AtomicMap {
   def apply[F[_]: Concurrent, K: Ordering, V]: F[AtomicMap[F, K, V]] =
     for {
 
-      mm <- Ref.of[F, Map[K, V]](TreeMap.empty[K, V])
+      mm <- Ref.of[F, TreeMap[K, V]](TreeMap.empty[K, V])
 
     } yield new AtomicMap[F, K, V]() {
 
       override def update(key: K, result: V): F[Unit] = mm.update(m => m.updated(key, result))
 
-      override def remove(key: K): F[Option[V]] = mm.modify(m => (m.removed(key), m.get(key)))
+      override def remove(key: K): F[Option[V]] = mm.modify(m => (m - key, m.get(key)))
 
       override def removeAll(): F[List[V]] = mm.modify(m => (TreeMap.empty[K, V], m.toSeq.map(p => p._2).toList))
     }

@@ -35,12 +35,14 @@ object PredefinedRetryPolicy {
 
 sealed trait RetryConfig[F[_]]
 object RetryConfig {
-  case class Predefined[F[_]](
-      policy: PredefinedRetryPolicy = FibonacciBackoff,
-      maxRetries: Int = 5,
-      baseDelay: FiniteDuration = 2.seconds
-  ) extends RetryConfig[F]
-  case class Custom[F[_]](policy: RetryPolicy[F]) extends RetryConfig[F]
+  def policyOf[F[_]: Applicative](retryConfig: RetryConfig[F]): RetryPolicy[F] =
+    retryConfig match {
+      case Predefined(policy, maxRetries, baseDelay) =>
+        RetryPolicies
+          .limitRetries(maxRetries)
+          .join(basePolicy(policy, baseDelay))
+      case Custom(policy) => policy
+    }
 
   private def basePolicy[F[_]: Applicative](
       predefinedRetryPolicy: PredefinedRetryPolicy,
@@ -53,14 +55,13 @@ object RetryConfig {
       case FullJitter         => RetryPolicies.fullJitter(baseDelay)
     }
 
-  def policyOf[F[_]: Applicative](retryConfig: RetryConfig[F]): RetryPolicy[F] =
-    retryConfig match {
-      case Predefined(policy, maxRetries, baseDelay) =>
-        RetryPolicies
-          .limitRetries(maxRetries)
-          .join(basePolicy(policy, baseDelay))
-      case Custom(policy) => policy
-    }
+  case class Predefined[F[_]](
+      policy: PredefinedRetryPolicy = FibonacciBackoff,
+      maxRetries: Int = 5,
+      baseDelay: FiniteDuration = 2.seconds
+  ) extends RetryConfig[F]
+
+  case class Custom[F[_]](policy: RetryPolicy[F]) extends RetryConfig[F]
 }
 
 sealed trait TLSContextKind

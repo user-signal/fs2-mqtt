@@ -19,26 +19,33 @@ package net.sigusr.mqtt.api
 import cats.Show
 import enumeratum.values._
 
+import scala.collection.immutable
 import scala.util.control.NoStackTrace
 
 sealed trait Errors extends NoStackTrace
 
 object Errors {
-  case object ProtocolError extends Errors
   case class ConnectionFailure(reason: ConnectionFailureReason) extends Errors
+
+  case object ProtocolError extends Errors
 }
 
 sealed abstract class ConnectionFailureReason(val value: Int) extends IntEnumEntry
 
 object ConnectionFailureReason extends IntEnum[ConnectionFailureReason] {
-  case class TransportError(reason: Throwable) extends ConnectionFailureReason(0)
-  case object BadProtocolVersion extends ConnectionFailureReason(1)
-  case object IdentifierRejected extends ConnectionFailureReason(2)
-  case object ServerUnavailable extends ConnectionFailureReason(3)
-  case object BadUserNameOrPassword extends ConnectionFailureReason(4)
-  case object NotAuthorized extends ConnectionFailureReason(5)
+  val values: immutable.IndexedSeq[ConnectionFailureReason] = findValues
 
-  val values: IndexedSeq[ConnectionFailureReason] = findValues
+  case class TransportError(reason: Throwable) extends ConnectionFailureReason(0)
+
+  case object BadProtocolVersion extends ConnectionFailureReason(1)
+
+  case object IdentifierRejected extends ConnectionFailureReason(2)
+
+  case object ServerUnavailable extends ConnectionFailureReason(3)
+
+  case object BadUserNameOrPassword extends ConnectionFailureReason(4)
+
+  case object NotAuthorized extends ConnectionFailureReason(5)
 
   implicit val showPerson: Show[ConnectionFailureReason] = Show.show {
     case TransportError(reason) => s"Transport error: ${reason.getMessage}"
