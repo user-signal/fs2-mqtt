@@ -3,6 +3,7 @@ import sbt._
 
 lazy val scala213 = "2.13.4"
 lazy val scala212 = "2.12.12"
+lazy val supportedScalaVersion = Seq(scala213, scala212)
 
 lazy val IntegrationTest = config("it").extend(Test)
 
@@ -22,7 +23,6 @@ val filterConsoleScalacOptions = { options: Seq[String] =>
 
 lazy val commonSettings = Seq(
   organization := "net.sigusr",
-  crossScalaVersions := Seq(scala213, scala212),
   scalaVersion := scala213,
   scalacOptions := Seq(
     "-encoding",
@@ -48,9 +48,28 @@ lazy val commonSettings = Seq(
     "-Xlint:package-object-classes",
     "-Xlint:poly-implicit-overload",
     "-Xlint:private-shadow",
-    "-Xlint:stars-align",
-    "-Xlint:type-parameter-shadow"
+    "-Xlint:stars-align"
   ),
+  scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((2, n)) if n <= 12 => Seq(
+      "-Xlint:nullary-override",
+    )
+    case _                       => Seq(
+      "-Ymacro-annotations",
+      "-Xlint:deprecation",
+      "-Xlint:type-parameter-shadow",
+      "-Wdead-code",
+      "-Wextra-implicit",
+      "-Wnumeric-widen",
+      "-Wunused:implicits",
+      "-Wunused:imports",
+      "-Wunused:locals",
+      "-Wunused:params",
+      "-Wunused:patvars",
+      "-Wunused:privates",
+      "-Wvalue-discard"
+    )
+  }),
   scalacOptions in (Compile, console) ~= filterConsoleScalacOptions,
   scalacOptions in Test ++= Seq("-Yrangepos"),
   scalacOptions in (Test, console) ~= filterConsoleScalacOptions
@@ -67,6 +86,7 @@ lazy val core = project
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := """fs2-mqtt""",
       version := "0.4.1",
+      crossScalaVersions := supportedScalaVersion,
       libraryDependencies ++= Seq(
         "com.beachape" %% "enumeratum" % "1.6.1",
         "org.specs2" %% "specs2-core" % "4.10.5" % "test",
@@ -88,6 +108,7 @@ lazy val examples = project
   .dependsOn(core)
   .settings(
     commonSettings ++ Seq(
+      crossScalaVersions := supportedScalaVersion,
       libraryDependencies ++= Seq(
         "io.monix" %% "monix" % "3.2.1",
         "dev.zio" %% "zio-interop-cats" % "2.0.0.0-RC13"
