@@ -5,7 +5,7 @@ jdk:
 - openjdk11
 script: sbt clean coverage +test core/coverageReport && sbt coverageAggregate
 after_success: sbt coveralls $(if [[ "${TRAVIS_PULL_REQUEST}" == "false" && "${TRAVIS_BRANCH}"
-  == "master" && "${TRAVIS_TAG}" == "" ]]; then echo "+ core/publish";  fi)
+  == "master" && "${TRAVIS_TAG}" == "" ]]; then echo "+core/publish";  fi)
 env:
   global:
   - secure: KZN57oqVXYnWz/sp0WSstiTrBOE+LbzhqYjIMh2AV58DszP2hHAEz460lm5bbuDr4cerX+qrKmfc0QgCWXuRryHw648ngSCwsiddNaPhyycqIsmrjaf2SZSvoyAbfMfvzUdVIhEj+4gK+x1W3T05KHg2Cfcrqxbq5zR1ZiHLZXtXpkRhbHp3VI8gMjAnMjbhNoQwdz5edCBVucxRsQECYspvy0tHS4NpvYZTmgH9yaQIMVhBN45naPzFQlQk0zvTKKjksaET1eTA/tKGDpnU0SGdfcEKRa5KicVYWvxQRko2cXZZ8+cPLqVdZcmR2rCUMV7COuIAuYXbjSPnwZgwyBBpacwNnl4v0j+w7c8GBFLaYCZ+XP/KGvTB+OCGFbOX/9sSIp91q9Tw/qbnuh/We2ym9w7Q176neAx6pzz8Tide97YOk2Rm+Aetw+4nWV+ySjped5oWELtVQtnI5J+S8/jL2zuPXGr0ibjHK/V+gotgg+r2Wi4kjhyGUTAQ8T9YKIZMlQO3IMAuROgMsJqMkW8i3BEn1+2DN2KJ/1F0UMr5eIXKvcHTlm5eQ3cavvbVs/tupEvVORh8BJXlZERDFo7CSOGsEpLWTvYkLh1aNLNK5xKxqHImc4KF1WeAW3yLPT9oW+02MVCQSqLOIPlh3m5+9lq+qeqeqUvUkQAcIHw=

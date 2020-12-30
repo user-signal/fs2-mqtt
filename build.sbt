@@ -85,7 +85,7 @@ lazy val core = project
   .settings(
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := """fs2-mqtt""",
-      version := "0.4.1",
+      version := "0.4.2-SNAPSHOT",
       crossScalaVersions := supportedScalaVersion,
       libraryDependencies ++= Seq(
         "com.beachape" %% "enumeratum" % "1.6.1",
