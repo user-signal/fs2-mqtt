@@ -92,11 +92,11 @@ lazy val core = project
         "org.specs2" %% "specs2-core" % "4.10.5" % "test",
         "org.scodec" %% "scodec-core" % "1.11.7",
         "org.scodec" %% "scodec-stream" % "2.0.0",
-        "co.fs2" %% "fs2-core" % "2.4.4",
-        "co.fs2" %% "fs2-io" % "2.4.4",
-        "org.typelevel" %% "cats-core" % "2.2.0",
-        "org.typelevel" %% "cats-effect" % "2.2.0",
-        "com.github.cb372" %% "cats-retry" % "2.0.0",
+        "co.fs2" %% "fs2-core" % "2.5.0",
+        "co.fs2" %% "fs2-io" % "2.5.0",
+        "org.typelevel" %% "cats-core" % "2.3.1",
+        "org.typelevel" %% "cats-effect" % "2.3.1",
+        "com.github.cb372" %% "cats-retry" % "2.1.0",
         "com.github.julien-truffaut" %% "monocle-core" % "2.1.0",
         "com.github.julien-truffaut" %% "monocle-macro" % "2.1.0"
       )
@@ -110,8 +110,8 @@ lazy val examples = project
     commonSettings ++ Seq(
       crossScalaVersions := supportedScalaVersion,
       libraryDependencies ++= Seq(
-        "io.monix" %% "monix" % "3.2.1",
-        "dev.zio" %% "zio-interop-cats" % "2.0.0.0-RC13"
+        "io.monix" %% "monix" % "3.2.2",
+        "dev.zio" %% "zio-interop-cats" % "2.2.0.1"
       ),
       publish := ((): Unit),
       publishLocal := ((): Unit),
@@ -132,9 +132,9 @@ import com.jsuereth.sbtpgp.PgpKeys.{gpgCommand, pgpSecretRing, useGpg}
 
 def pgpSettings =
   Seq(
-    useGpg := true,
-    gpgCommand := "/usr/bin/gpg",
-    pgpSecretRing := file("~/.gnupg/secring.gpg")
+    useGpg.withRank(KeyRanks.Invisible) := true,
+    gpgCommand.withRank(KeyRanks.Invisible) := "/usr/bin/gpg",
+    pgpSecretRing.withRank(KeyRanks.Invisible) := file("~/.gnupg/secring.gpg")
   )
 
 val ossSnapshots = "Sonatype OSS Snapshots".at("https://oss.sonatype.org/content/repositories/snapshots/")

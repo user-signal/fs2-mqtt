@@ -26,14 +26,12 @@ import retry.RetryPolicies
 import zio.duration.Duration
 import zio.interop.catz._
 import zio.interop.catz.implicits._
-import zio.{App, Task, ZEnv, ZIO}
+import zio.{App, ExitCode, Task, URIO, ZIO}
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
-object LocalSubscriber extends App {
 
-  private val Success: Int = 0 & 0xff
-  private val Error: Int = 1 & 0xff
+object LocalSubscriber extends App {
 
   private val stopTopic: String = s"$localSubscriber/stop"
   private val subscribedTopics: Vector[(String, QualityOfService)] = Vector(
@@ -45,7 +43,7 @@ object LocalSubscriber extends App {
 
   private val unsubscribedTopics: Vector[String] = Vector("AtMostOnce", "AtLeastOnce", "ExactlyOnce")
 
-  override def run(args: List[String]): ZIO[ZEnv, Nothing, Int] = {
+  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     val retryConfig: Custom[Task] = Custom[Task](
       RetryPolicies
         .limitRetries[Task](5)
@@ -99,7 +97,7 @@ object LocalSubscriber extends App {
         }
         .asInstanceOf[Task[Boolean]]
     }
-  }.fold(_ => Error, _ => Success)
+  }.fold(_ => ExitCode.failure, _ => ExitCode.success)
 
   private def processMessages(stopSignal: SignallingRef[Task, Boolean]): Message => Stream[Task, Unit] = {
     case Message(LocalSubscriber.stopTopic, _) => Stream.eval_(stopSignal.set(true))

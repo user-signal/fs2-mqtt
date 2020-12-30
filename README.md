@@ -64,7 +64,7 @@ Still, there's work ahead:
  * a proper documentation
  * shame on me, far more test coverage /o\
  * performance evaluation
- * cross builds would be nice… even considering *Scala.js*,
+ * trying to consider *Scala.js*,
  * …
 
 For examples on how to use it, you can have a look at the [local subscriber][local subscriber] or the [local publisher][local publisher] 
@@ -86,10 +86,10 @@ In case you want to easily give a try to this library, without the burden of add
 to Maven Central. In this case just add,
 
 ```scala
-scalaVersion := "2.13.2"
+scalaVersion := "2.13.4"
 
 libraryDependencies ++= Seq(
-    "net.sigusr" %% "fs2-mqtt" % "0.4.1"
+    "net.sigusr" %% "fs2-mqtt" % "0.4.2"
 )
 ```
 
