@@ -88,8 +88,11 @@ lazy val core = project
       version := "0.4.2",
       crossScalaVersions := supportedScalaVersion,
       libraryDependencies ++= Seq(
-        "com.beachape" %% "enumeratum" % "1.6.1",
         "org.specs2" %% "specs2-core" % "4.10.5" % "test",
+        "com.codecommit" %% "cats-effect-testing-specs2" % "0.5.0" % "test",
+        "org.typelevel" %% "cats-effect-laws" % "2.3.1" % "test",
+        
+        "com.beachape" %% "enumeratum" % "1.6.1",
         "org.scodec" %% "scodec-core" % "1.11.7",
         "org.scodec" %% "scodec-stream" % "2.0.0",
         "co.fs2" %% "fs2-core" % "2.5.0",
