@@ -25,6 +25,7 @@ lazy val commonSettings = Seq(
   organization := "net.sigusr",
   scalaVersion := scala213,
   crossScalaVersions := supportedScalaVersion,
+  coverageExcludedPackages := "net.sigusr.mqtt.examples",
   scalacOptions := Seq(
     "-encoding",
     "utf-8",
