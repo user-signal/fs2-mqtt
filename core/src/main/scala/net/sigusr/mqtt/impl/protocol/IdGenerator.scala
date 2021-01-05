@@ -32,19 +32,19 @@ trait IdGenerator[F[_]] {
 
 object IdGenerator {
 
-  private def idQueue[F[_]: Concurrent](q: Queue[F, Int]): F[Fiber[F, Unit]] = {
+  private def idQueue[F[_]: Concurrent](start: Int, q: Queue[F, Int]): F[Fiber[F, Unit]] = {
     def go(v: Int): Stream[Pure, Int] =
       v match {
         case 65535 => Stream.emit(1) ++ go(2)
         case _     => Stream.emit(v) ++ go(v + 1)
       }
-    go(1).through(q.enqueue(_)).compile.drain.start
+    go(start).through(q.enqueue(_)).compile.drain.start
   }
 
-  def apply[F[_]: Concurrent]: F[IdGenerator[F]] =
+  def apply[F[_]: Concurrent](start: Int): F[IdGenerator[F]] =
     for {
       q <- Queue.bounded[F, Int](2)
-      f <- idQueue[F](q)
+      f <- idQueue[F](start, q)
     } yield new IdGenerator[F] {
 
       override def next: F[Int] = q.dequeue1

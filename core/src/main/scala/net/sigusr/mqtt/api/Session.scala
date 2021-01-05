@@ -61,7 +61,7 @@ object Session {
   ): F[(Session[F], F[Unit])] =
     for {
 
-      ids <- IdGenerator[F]
+      ids <- IdGenerator[F](1)
       protocol <- Protocol(sessionConfig, transportConfig)
 
     } yield (
