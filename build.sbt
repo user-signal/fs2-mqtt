@@ -24,6 +24,7 @@ val filterConsoleScalacOptions = { options: Seq[String] =>
 lazy val commonSettings = Seq(
   organization := "net.sigusr",
   scalaVersion := scala213,
+  crossScalaVersions := supportedScalaVersion,
   scalacOptions := Seq(
     "-encoding",
     "utf-8",
@@ -75,9 +76,7 @@ lazy val commonSettings = Seq(
   scalacOptions in (Test, console) ~= filterConsoleScalacOptions
 )
 
-lazy val root = (project in file("."))
-  .aggregate(core, examples)
-  .settings(commonSettings: _*)
+lazy val root = (project in file(".")).aggregate(core, examples)
 
 lazy val core = project
   .in(file("core"))
@@ -86,7 +85,6 @@ lazy val core = project
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := """fs2-mqtt""",
       version := "0.4.2",
-      crossScalaVersions := supportedScalaVersion,
       libraryDependencies ++= Seq(
         "org.specs2" %% "specs2-core" % "4.10.5" % "test",
         "com.codecommit" %% "cats-effect-testing-specs2" % "0.5.0" % "test",
@@ -111,7 +109,6 @@ lazy val examples = project
   .dependsOn(core)
   .settings(
     commonSettings ++ Seq(
-      crossScalaVersions := supportedScalaVersion,
       libraryDependencies ++= Seq(
         "io.monix" %% "monix" % "3.2.2",
         "dev.zio" %% "zio-interop-cats" % "2.2.0.1"
