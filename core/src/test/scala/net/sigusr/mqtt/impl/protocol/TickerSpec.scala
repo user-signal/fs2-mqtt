@@ -8,14 +8,14 @@ import org.specs2.mutable._
 
 import scala.concurrent.duration.DurationInt
 
-class TickerSpec extends Specification with CatsEffect{
+class TickerSpec extends Specification with CatsEffect {
   "A ticker" should {
 
     "Trigger a program when an given time is elapsed" in {
       val context = new net.sigusr.mqtt.SpecUtils.CatsContext
       import context._
       Ref[IO].of(false) >>= { ref =>
-        Ticker[IO](30, ref.set(true)).unsafeRunSync()
+        Ticker[IO](30, ref.set(true)).unsafeToFuture()
         ec.tick(31.seconds)
         ref.get.map(_ must beTrue)
       }
@@ -25,23 +25,21 @@ class TickerSpec extends Specification with CatsEffect{
       val context = new net.sigusr.mqtt.SpecUtils.CatsContext
       import context._
       Ref[IO].of(false) >>= { ref =>
-        Ticker[IO](30, ref.set(true)).unsafeRunSync()
+        Ticker[IO](30, ref.set(true)).unsafeToFuture()
         ec.tick(29.seconds)
         ref.get.map(_ must beFalse)
       }
     }
 
-    //TODO: this test is plain wrong !!!!
     "Not trigger a program when an given time is elapsed but it has been reset" in {
       val context = new net.sigusr.mqtt.SpecUtils.CatsContext
       import context._
       Ref[IO].of(false).flatMap { ref =>
         Ticker[IO](30, ref.set(true)).flatMap { t =>
-          ec.tick(29.seconds)
-          t.reset
-          ec.tick(2.seconds)
-          ref.get.map(_ must beFalse)
-        }
+          ioTimer.sleep(20.seconds) *> t.reset
+        }.unsafeToFuture()
+        ec.tick(30.seconds)
+        ref.get.map(_ must beFalse)
       }
     }
   }
