@@ -42,5 +42,23 @@ class TickerSpec extends Specification with CatsEffect {
         ref.get.map(_ must beFalse)
       }
     }
+
+    "Be cancellable" in {
+      val context = new net.sigusr.mqtt.SpecUtils.CatsContext
+      import context._
+      Ref[IO].of(false).flatMap { ref =>
+        val ticker = Ticker[IO](30, ref.set(true))
+        ticker.flatMap { t =>
+          ioTimer.sleep(30.seconds) *> t.cancel
+        }.unsafeToFuture()
+        ec.tick(30.seconds)
+        ref.get.map(_ must beFalse)
+        ticker.flatMap { t =>
+          ioTimer.sleep(31.seconds) *> t.cancel
+        }.unsafeToFuture()
+        ec.tick(30.seconds)
+        ref.get.map(_ must beTrue)
+      }
+    }
   }
 }
