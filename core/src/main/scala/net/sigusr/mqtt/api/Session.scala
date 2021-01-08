@@ -25,7 +25,7 @@ import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
 import net.sigusr.mqtt.impl.frames.Builders._
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Result.QoS
-import net.sigusr.mqtt.impl.protocol.{IdGenerator, Protocol}
+import net.sigusr.mqtt.impl.protocol.{IdGenerator, Protocol, Transport}
 
 sealed case class Message(topic: String, payload: Vector[Byte])
 
@@ -62,7 +62,7 @@ object Session {
     for {
 
       ids <- IdGenerator[F](1)
-      protocol <- Protocol(sessionConfig, transportConfig)
+      protocol <- Protocol(sessionConfig, Transport[F](transportConfig))
 
     } yield (
       new Session[F] {

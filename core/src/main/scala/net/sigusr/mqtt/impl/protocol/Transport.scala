@@ -20,13 +20,12 @@ import cats.effect.implicits._
 import cats.effect.{Blocker, Concurrent, ContextShift, Fiber, Timer}
 import cats.implicits._
 import enumeratum.values._
-import fs2.concurrent.SignallingRef
 import fs2.io.tcp.{Socket, SocketGroup}
 import fs2.{Pipe, Stream}
 import net.sigusr.mqtt.api.ConnectionFailureReason.TransportError
 import net.sigusr.mqtt.api.ConnectionState.{Connected, Connecting, Disconnected, Error}
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
-import net.sigusr.mqtt.api.{ConnectionState, RetryConfig, TransportConfig}
+import net.sigusr.mqtt.api.{RetryConfig, TransportConfig}
 import net.sigusr.mqtt.impl.frames.Frame
 import net.sigusr.mqtt.impl.protocol.Transport.Direction.{In, Out}
 import retry.RetryDetails.{GivingUp, WillDelayAndRetry}
@@ -64,19 +63,16 @@ object Transport {
 
   private def connect[F[_]: Concurrent: ContextShift: Timer](
       transportConfig: TransportConfig[F],
-      stateSignal: SignallingRef[F, ConnectionState],
-      closeSignal: SignallingRef[F, Boolean],
-      in: Pipe[F, Frame, Unit],
-      out: Stream[F, Frame]
+      connector: TransportConnector[F]
   ): F[Fiber[F, Unit]] = {
 
     def outgoing(socket: Socket[F]): F[Unit] =
-      out
+      connector.out
         .through(tracingPipe(Out(transportConfig.traceMessages)))
         .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
         .through(socket.writes(transportConfig.writeTimeout))
         .onComplete {
-          Stream.eval(stateSignal.set(Disconnected))
+          Stream.eval(connector.stateSignal.set(Disconnected))
         }
         .compile
         .drain
@@ -86,15 +82,15 @@ object Transport {
         .reads(transportConfig.numReadBytes, transportConfig.readTimeout)
         .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
         .through(tracingPipe(In(transportConfig.traceMessages)))
-        .through(in)
+        .through(connector.in)
         .onComplete {
-          Stream.eval(stateSignal.set(Disconnected))
+          Stream.eval(connector.stateSignal.set(Disconnected))
         }
         .compile
         .drain
 
     def closeSignalWatcher(socket: Socket[F]) =
-      closeSignal.discrete.evalMap(if (_) socket.close else Concurrent[F].pure(())).compile.drain
+      connector.closeSignal.discrete.evalMap(if (_) socket.close else Concurrent[F].pure(())).compile.drain
 
     def loop(): F[Unit] = {
 
@@ -103,15 +99,15 @@ object Transport {
       def publishError(err: Throwable, details: RetryDetails): F[Unit] =
         details match {
           case WillDelayAndRetry(nextDelay: FiniteDuration, retriesSoFar: Int, _) =>
-            stateSignal.set(Connecting(nextDelay, retriesSoFar))
+            connector.stateSignal.set(Connecting(nextDelay, retriesSoFar))
 
           case GivingUp(_, _) =>
-            stateSignal.set(Error(ConnectionFailure(TransportError(err))))
+            connector.stateSignal.set(Error(ConnectionFailure(TransportError(err))))
         }
 
       def pump(socket: Socket[F]) =
         for {
-          _ <- stateSignal.set(Connected)
+          _ <- connector.stateSignal.set(Connected)
           _ <- outgoing(socket).race(incoming(socket)).race(closeSignalWatcher(socket))
         } yield ()
 
@@ -127,8 +123,8 @@ object Transport {
             }
           }
         }
-      } >> stateSignal.get.flatMap {
-        case Disconnected => closeSignal.set(false) >> loop()
+      } >> connector.stateSignal.get.flatMap {
+        case Disconnected => connector.closeSignal.set(false) >> loop()
         case _            => Concurrent[F].pure(())
       }
     }
@@ -137,15 +133,11 @@ object Transport {
   }
 
   def apply[F[_]: Concurrent: ContextShift: Timer](
-      transportConfig: TransportConfig[F],
-      in: Pipe[F, Frame, Unit],
-      out: Stream[F, Frame],
-      stateSignal: SignallingRef[F, ConnectionState],
-      closeSignal: SignallingRef[F, Boolean]
-  ): F[Transport[F]] =
+      transportConfig: TransportConfig[F]
+  )(connector: TransportConnector[F]): F[Transport[F]] =
     for {
 
-      _ <- connect(transportConfig, stateSignal, closeSignal, in, out)
+      _ <- connect(transportConfig, connector)
 
     } yield new Transport[F] {}
 }

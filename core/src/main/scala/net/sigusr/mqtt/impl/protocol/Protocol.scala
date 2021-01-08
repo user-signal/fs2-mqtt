@@ -48,7 +48,7 @@ object Protocol {
 
   def apply[F[_]: Concurrent: Timer: ContextShift](
       sessionConfig: SessionConfig,
-      transportConfig: TransportConfig[F]
+      transport: TransportConnector[F] => F[Transport[F]]
   ): F[Protocol[F]] = {
 
     def inboundMessagesInterpreter(
@@ -216,7 +216,7 @@ object Protocol {
       outbound: Stream[F, Frame] =
         frameQueue.dequeue.through(outboundMessagesInterpreter(inFlightOutBound, stateSignal, pingTicker))
 
-      _ <- Transport[F](transportConfig, inbound, outbound, stateSignal, closeSignal) // TODO: cancel or ressource?
+      _ <- transport(TransportConnector[F](inbound, outbound, stateSignal, closeSignal))
 
     } yield new Protocol[F] {
 

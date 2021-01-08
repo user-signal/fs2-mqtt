@@ -85,7 +85,7 @@ lazy val core = project
   .settings(
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := """fs2-mqtt""",
-      version := "0.4.2",
+      version := "0.5.0-SNAPSHOT",
       libraryDependencies ++= Seq(
         "org.specs2" %% "specs2-core" % "4.10.5" % "test",
         "com.codecommit" %% "cats-effect-testing-specs2" % "0.5.0" % "test",
