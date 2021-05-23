@@ -16,8 +16,6 @@
 
 package net.sigusr.mqtt.impl
 
-import monocle.Lens
-import monocle.macros.GenLens
 import scodec.Codec
 import scodec.bits._
 import scodec.codecs._
@@ -33,14 +31,10 @@ package object frames {
   val stringCodec: Codec[String] = variableSizeBytes(uint16, utf8)
   val bytePaddingCodec: Codec[Unit] = constant(bin"00000000")
   val setDupFlag: Frame => Frame = {
-    case f0: PublishFrame     => publishFrame.set(true)(f0)
-    case f1: PubrelFrame      => pubrelFrame.set(true)(f1)
-    case f2: SubscribeFrame   => subscribeFrame.set(true)(f2)
-    case f3: UnsubscribeFrame => unsubscribeFrame.set(true)(f3)
+    case f0: PublishFrame     => f0.copy(f0.header.copy(dup = true))
+    case f1: PubrelFrame      => f1.copy(f1.header.copy(dup = true))
+    case f2: SubscribeFrame   => f2.copy(f2.header.copy(dup = true))
+    case f3: UnsubscribeFrame => f3.copy(f3.header.copy(dup = true))
     case f: Frame             => f
   }
-  private val publishFrame: Lens[PublishFrame, Boolean] = GenLens[PublishFrame](_.header.dup)
-  private val pubrelFrame: Lens[PubrelFrame, Boolean] = GenLens[PubrelFrame](_.header.dup)
-  private val subscribeFrame: Lens[SubscribeFrame, Boolean] = GenLens[SubscribeFrame](_.header.dup)
-  private val unsubscribeFrame: Lens[UnsubscribeFrame, Boolean] = GenLens[UnsubscribeFrame](_.header.dup)
 }

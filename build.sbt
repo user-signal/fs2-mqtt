@@ -92,15 +92,11 @@ lazy val core = project
         "org.typelevel" %% "cats-effect-laws" % "2.3.1" % "test",
         
         "com.beachape" %% "enumeratum" % "1.6.1",
-        "org.scodec" %% "scodec-core" % "1.11.7",
-        "org.scodec" %% "scodec-stream" % "2.0.0",
-        "co.fs2" %% "fs2-core" % "2.5.0",
-        "co.fs2" %% "fs2-io" % "2.5.0",
-        "org.typelevel" %% "cats-core" % "2.3.1",
-        "org.typelevel" %% "cats-effect" % "2.3.1",
-        "com.github.cb372" %% "cats-retry" % "2.1.0",
-        "com.github.julien-truffaut" %% "monocle-core" % "2.1.0",
-        "com.github.julien-truffaut" %% "monocle-macro" % "2.1.0"
+        "org.scodec" %% "scodec-stream" % "2.0.2",
+        
+        "co.fs2" %% "fs2-io" % "2.5.6",
+        "org.typelevel" %% "cats-effect" % "2.5.1",
+        "com.github.cb372" %% "cats-retry" % "2.1.0"
       )
     )
   )
@@ -111,8 +107,8 @@ lazy val examples = project
   .settings(
     commonSettings ++ Seq(
       libraryDependencies ++= Seq(
-        "io.monix" %% "monix" % "3.2.2",
-        "dev.zio" %% "zio-interop-cats" % "2.2.0.1"
+        "io.monix" %% "monix" % "3.4.0",
+        "dev.zio" %% "zio-interop-cats" % "2.5.1.0"
       ),
       publish := ((): Unit),
       publishLocal := ((): Unit),
