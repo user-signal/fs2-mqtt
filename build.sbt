@@ -1,9 +1,10 @@
 import sbt.Keys._
 import sbt._
 
+lazy val scala3 = "3.0.0"
 lazy val scala213 = "2.13.4"
 lazy val scala212 = "2.12.12"
-lazy val supportedScalaVersion = Seq(scala213, scala212)
+lazy val supportedScalaVersion = Seq(scala3, scala213, scala212)
 
 lazy val IntegrationTest = config("it").extend(Test)
 
@@ -29,37 +30,34 @@ lazy val commonSettings = Seq(
   scalacOptions := Seq(
     "-encoding",
     "utf-8",
-    "-explaintypes",
     "-feature",
     "-language:existentials",
     "-language:experimental.macros",
     "-language:higherKinds",
     "-language:implicitConversions",
     "-Xfatal-warnings",
-    "-unchecked",
-    "-Xcheckinit",
-    "-Xlint:adapted-args",
-    "-Xlint:constant",
-    "-Xlint:delayedinit-select",
-    "-Xlint:doc-detached",
-    "-Xlint:inaccessible",
-    "-Xlint:infer-any",
-    "-Xlint:missing-interpolator",
-    "-Xlint:nullary-unit",
-    "-Xlint:option-implicit",
-    "-Xlint:package-object-classes",
-    "-Xlint:poly-implicit-overload",
-    "-Xlint:private-shadow",
-    "-Xlint:stars-align"
+    "-unchecked"
   ),
   scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((2, n)) if n <= 12 => Seq(
+    case Some((2, 12)) => Seq(
+      "-Xcheckinit",
+      "-Xlint:adapted-args",
+      "-Xlint:constant",
+      "-Xlint:delayedinit-select",
+      "-Xlint:doc-detached",
+      "-Xlint:inaccessible",
+      "-Xlint:infer-any",
+      "-Xlint:missing-interpolator",
       "-Xlint:nullary-override",
+      "-Xlint:nullary-unit",
+      "-Xlint:option-implicit",
+      "-Xlint:package-object-classes",
+      "-Xlint:poly-implicit-overload",
+      "-Xlint:private-shadow",
+      "-Xlint:stars-align",
+      "-explaintypes",
     )
-    case _                       => Seq(
-      "-Ymacro-annotations",
-      "-Xlint:deprecation",
-      "-Xlint:type-parameter-shadow",
+    case Some((2, 13)) => Seq(
       "-Wdead-code",
       "-Wextra-implicit",
       "-Wnumeric-widen",
@@ -69,12 +67,31 @@ lazy val commonSettings = Seq(
       "-Wunused:params",
       "-Wunused:patvars",
       "-Wunused:privates",
-      "-Wvalue-discard"
+      "-Wvalue-discard",
+      "-Xcheckinit",
+      "-Xlint:adapted-args",
+      "-Xlint:constant",
+      "-Xlint:delayedinit-select",
+      "-Xlint:deprecation",
+      "-Xlint:doc-detached",
+      "-Xlint:inaccessible",
+      "-Xlint:infer-any",
+      "-Xlint:missing-interpolator",
+      "-Xlint:nullary-unit",
+      "-Xlint:option-implicit",
+      "-Xlint:package-object-classes",
+      "-Xlint:poly-implicit-overload",
+      "-Xlint:private-shadow",
+      "-Xlint:stars-align",
+      "-Xlint:type-parameter-shadow",
+      "-Ymacro-annotations",
+      "-explaintypes",
     )
+    case _ => Seq() 
   }),
-  scalacOptions in (Compile, console) ~= filterConsoleScalacOptions,
-  scalacOptions in Test ++= Seq("-Yrangepos"),
-  scalacOptions in (Test, console) ~= filterConsoleScalacOptions
+  Compile / console / scalacOptions ~= filterConsoleScalacOptions,
+  Test / scalacOptions ++= Seq("-Yrangepos"),
+  Test / console / scalacOptions ~= filterConsoleScalacOptions
 )
 
 lazy val root = (project in file(".")).aggregate(core, examples)
@@ -87,16 +104,16 @@ lazy val core = project
       name := """fs2-mqtt""",
       version := "0.5.0-SNAPSHOT",
       libraryDependencies ++= Seq(
-        "org.specs2" %% "specs2-core" % "4.10.5" % "test",
-        "com.codecommit" %% "cats-effect-testing-specs2" % "0.5.0" % "test",
-        "org.typelevel" %% "cats-effect-laws" % "2.3.1" % "test",
-        
-        "com.beachape" %% "enumeratum" % "1.6.1",
+        ("org.specs2" %% "specs2-core" % "4.12.0" % "test").cross(CrossVersion.for3Use2_13),
+        ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.0" % "test").cross(CrossVersion.for3Use2_13),
+        "org.typelevel" %% "cats-effect-laws" % "2.5.1" % "test",
+
+        ("com.beachape" %% "enumeratum" % "1.6.1").cross(CrossVersion.for3Use2_13),
         "org.scodec" %% "scodec-stream" % "2.0.2",
         
         "co.fs2" %% "fs2-io" % "2.5.6",
         "org.typelevel" %% "cats-effect" % "2.5.1",
-        "com.github.cb372" %% "cats-retry" % "2.1.0"
+        ("com.github.cb372" %% "cats-retry" % "2.1.0").cross(CrossVersion.for3Use2_13)
       )
     )
   )
@@ -121,8 +138,8 @@ def unitFilter(name: String): Boolean = !itFilter(name)
 
 def testSettings =
   Seq(
-    testOptions in Test := Seq(Tests.Filter(unitFilter)),
-    testOptions in IntegrationTest := Seq(Tests.Filter(itFilter))
+    Test / testOptions := Seq(Tests.Filter(unitFilter)),
+    IntegrationTest / testOptions := Seq(Tests.Filter(itFilter))
   ) ++ inConfig(IntegrationTest)(Defaults.testTasks)
 
 import com.jsuereth.sbtpgp.PgpKeys.{gpgCommand, pgpSecretRing, useGpg}
@@ -187,7 +204,7 @@ def publishingSettings: Seq[Setting[_]] =
     credentialsSetting,
     publishMavenStyle := true,
     publishTo := version((v: String) => Some(if (v.trim.endsWith("SNAPSHOT")) ossSnapshots else ossStaging)).value,
-    publishArtifact in Test := false,
+    Test / publishArtifact := false,
     pomIncludeRepository := (_ => false),
     pomExtra := scalaVersion(generatePomExtra).value
   )
