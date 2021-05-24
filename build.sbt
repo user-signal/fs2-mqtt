@@ -89,6 +89,13 @@ lazy val commonSettings = Seq(
     )
     case _ => Seq() 
   }),
+  Compile / unmanagedSourceDirectories ++= {
+    val sourceDir = (Compile / sourceDirectory).value
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, _))  => Seq(sourceDir / "scala-3")
+      case _             => Seq(sourceDir / "scala-2")
+    }
+  },
   Compile / console / scalacOptions ~= filterConsoleScalacOptions,
   Test / scalacOptions ++= Seq("-Yrangepos"),
   Test / console / scalacOptions ~= filterConsoleScalacOptions
