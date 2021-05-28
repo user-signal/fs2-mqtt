@@ -17,24 +17,16 @@
 package net.sigusr.mqtt.api
 
 import cats.Show
-import enumeratum.values._
 
 import scala.collection.immutable
 
-sealed abstract class QualityOfService(val value: Int) extends IntEnumEntry
+enum QualityOfService(val value: Int):
+  case AtMostOnce extends QualityOfService(0)
+  case AtLeastOnce extends QualityOfService(1)
+  case ExactlyOnce extends QualityOfService(2)
 
-object QualityOfService extends IntEnum[QualityOfService] {
-  val values: immutable.IndexedSeq[QualityOfService] = findValues
-
-  object AtMostOnce extends QualityOfService(0)
-
-  object AtLeastOnce extends QualityOfService(1)
-
-  object ExactlyOnce extends QualityOfService(2)
-
-  def fromOrdinal: Int => QualityOfService = QualityOfService.withValue
-
-  implicit val showPerson: Show[QualityOfService] = Show.show {
+object QualityOfService {
+  implicit val showQualityOfService: Show[QualityOfService] = Show.show {
     case AtMostOnce  => "at most once"
     case AtLeastOnce => "at least once"
     case ExactlyOnce => "exactly once"

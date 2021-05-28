@@ -24,7 +24,7 @@ val filterConsoleScalacOptions = { options: Seq[String] =>
 
 lazy val commonSettings = Seq(
   organization := "net.sigusr",
-  scalaVersion := scala213,
+  scalaVersion := scala3,
   crossScalaVersions := supportedScalaVersion,
   coverageExcludedPackages := "net.sigusr.mqtt.examples",
   scalacOptions := Seq(
@@ -115,13 +115,19 @@ lazy val core = project
         ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.0" % "test").cross(CrossVersion.for3Use2_13),
         "org.typelevel" %% "cats-effect-laws" % "2.5.1" % "test",
 
-        ("com.beachape" %% "enumeratum" % "1.6.1").cross(CrossVersion.for3Use2_13),
         "org.scodec" %% "scodec-stream" % "2.0.2",
         
         "co.fs2" %% "fs2-io" % "2.5.6",
         "org.typelevel" %% "cats-effect" % "2.5.1",
         ("com.github.cb372" %% "cats-retry" % "2.1.0").cross(CrossVersion.for3Use2_13)
-      )
+      ) ++ {
+        CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((3, _))  => Seq()
+          case _             => Seq(
+            ("com.beachape" %% "enumeratum" % "1.6.1").cross(CrossVersion.for3Use2_13),
+          )
+        }
+      }
     )
   )
 

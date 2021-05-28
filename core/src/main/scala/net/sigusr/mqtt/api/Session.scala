@@ -74,7 +74,7 @@ object Session {
             messageId <- ids.next
             v <- protocol.sendReceive(subscribeFrame(messageId, topics), messageId)
           } yield v match {
-            case QoS(t) => topics.zip(t).map(p => (p._1._1, QualityOfService.withValue(p._2)))
+            case QoS(t) => topics.zip(t).map(p => (p._1._1, QualityOfService.fromOrdinal(p._2)))
             case _      => throw ProtocolError
           }
 

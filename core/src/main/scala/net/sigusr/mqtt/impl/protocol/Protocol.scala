@@ -138,7 +138,7 @@ object Protocol {
                 else
                   Pull.eval(
                     stateSignal.set(
-                      Error(ConnectionFailure(ConnectionFailureReason.withValue(returnCode)))
+                      Error(ConnectionFailure(ConnectionFailureReason.fromOrdinal(returnCode)))
                     ) >> closeSignal.set(true)
                   )
 

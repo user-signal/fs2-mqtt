@@ -19,35 +19,26 @@ package net.sigusr.mqtt.impl.protocol
 import cats.effect.implicits._
 import cats.effect.{Blocker, Concurrent, ContextShift, Fiber, Timer}
 import cats.implicits._
-import enumeratum.values._
 import fs2.io.tcp.{Socket, SocketGroup}
 import fs2.{Pipe, Stream}
+import net.sigusr.impl.protocol.Direction
+import net.sigusr.impl.protocol.Direction.{In, Out}
 import net.sigusr.mqtt.api.ConnectionFailureReason.TransportError
 import net.sigusr.mqtt.api.ConnectionState.{Connected, Connecting, Disconnected, Error}
 import net.sigusr.mqtt.api.Errors.ConnectionFailure
 import net.sigusr.mqtt.api.{RetryConfig, TransportConfig}
 import net.sigusr.mqtt.impl.frames.Frame
-import net.sigusr.mqtt.impl.protocol.Transport.Direction.{In, Out}
 import retry.RetryDetails.{GivingUp, WillDelayAndRetry}
 import retry._
 import scodec.Codec
 import scodec.stream.{StreamDecoder, StreamEncoder}
 
 import java.net.InetSocketAddress
-import scala.collection.immutable
 import scala.concurrent.duration._
 
 trait Transport[F[_]] {}
 
 object Transport {
-
-  sealed abstract class Direction(val value: Char, val color: String, val active: Boolean) extends CharEnumEntry
-  object Direction extends CharEnum[Direction] {
-    case class In(override val active: Boolean) extends Direction('←', Console.YELLOW, active)
-    case class Out(override val active: Boolean) extends Direction('→', Console.GREEN, active)
-
-    val values: immutable.IndexedSeq[Direction] = findValues
-  }
 
   private def traceTLS[F[_]: Concurrent](b: Boolean) =
     if (b) Some((m: String) => putStrLn(s"${Console.MAGENTA}[TLS] $m${Console.RESET}")) else None
