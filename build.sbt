@@ -24,7 +24,7 @@ val filterConsoleScalacOptions = { options: Seq[String] =>
 
 lazy val commonSettings = Seq(
   organization := "net.sigusr",
-  scalaVersion := scala3,
+  scalaVersion := scala213,
   crossScalaVersions := supportedScalaVersion,
   coverageExcludedPackages := "net.sigusr.mqtt.examples",
   scalacOptions := Seq(

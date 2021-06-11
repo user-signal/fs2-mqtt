@@ -101,7 +101,6 @@ Roughly speaking this library depends on:
  * [scodec][scodec] and [scodec-stream][scodec-stream]
  * [Cats effect][cats-effet] for some internal concurrency stuff
  * [Cats effects retry][cats-effect-retry] to manage connection attempts
- * [Monocle][monocle]… because why not! 
  
 This library should work seamlessly with various compatible IO monads: [cats effects IO][cats-effect-IO] 
 of course, but [Monix][monix] and [ZIO][zio] as well as both support *cats effects* typeclasses.

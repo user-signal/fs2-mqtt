@@ -3,7 +3,7 @@ scala:
 - 2.13.4
 jdk:
 - openjdk11
-script: sbt clean coverage +test core/coverageReport && sbt coverageAggregate
+script: sbt +clean coverage test core/coverageReport coverageOff +test && sbt coverageAggregate
 after_success: sbt coveralls $(if [[ "${TRAVIS_PULL_REQUEST}" == "false" && "${TRAVIS_BRANCH}"
   == "master" && "${TRAVIS_TAG}" == "" ]]; then echo "+core/publish";  fi)
 env:
