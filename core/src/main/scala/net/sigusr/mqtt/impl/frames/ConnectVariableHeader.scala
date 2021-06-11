@@ -38,13 +38,13 @@ object ConnectVariableHeader {
   val connectVariableHeaderFixedBytes: BitVector = BitVector(hex"00064D514973647003")
 
   implicit val connectVariableHeaderCodec: Codec[ConnectVariableHeader] =
-    (constant(connectVariableHeaderFixedBytes) :~>:
+    (constant(connectVariableHeaderFixedBytes) ~>
       bool ::
       bool ::
       bool ::
       qosCodec ::
       bool ::
       bool ::
-      ignore(1) :~>:
+      ignore(1) ~>
       keepAliveCodec).as[ConnectVariableHeader]
 }

@@ -97,7 +97,13 @@ lazy val commonSettings = Seq(
     }
   },
   Compile / console / scalacOptions ~= filterConsoleScalacOptions,
-  Test / scalacOptions ++= Seq("-Yrangepos"),
+  Test / scalacOptions ++= {
+    val sourceDir = (Compile / sourceDirectory).value
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, _))  => Seq()
+      case _             => Seq("-Yrangepos")
+    }
+  },
   Test / console / scalacOptions ~= filterConsoleScalacOptions
 )
 

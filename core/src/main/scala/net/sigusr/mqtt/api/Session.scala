@@ -31,7 +31,7 @@ sealed case class Message(topic: String, payload: Vector[Byte])
 
 trait Session[F[_]] {
 
-  def messages(): Stream[F, Message]
+  def messages: Stream[F, Message]
 
   def subscribe(topics: Vector[(String, QualityOfService)]): F[Vector[(String, QualityOfService)]]
 

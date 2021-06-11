@@ -26,7 +26,7 @@ import retry.RetryPolicies
 import zio.duration.Duration
 import zio.interop.catz._
 import zio.interop.catz.implicits._
-import zio.{App, ExitCode, Task, URIO, ZIO}
+import zio._
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
@@ -90,7 +90,7 @@ object LocalSubscriber extends App {
               putStrLn[Task](s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
             _ <- stopSignal.discrete.compile.drain
           } yield ()
-          val reader = session.messages().flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
+          val reader = session.messages.flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
           for {
             _ <- sessionStatus <&> subscriber.race(reader)
           } yield ()
