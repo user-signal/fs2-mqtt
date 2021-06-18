@@ -104,7 +104,8 @@ lazy val commonSettings = Seq(
       case _             => Seq("-Yrangepos")
     }
   },
-  Test / console / scalacOptions ~= filterConsoleScalacOptions
+  Test / console / scalacOptions ~= filterConsoleScalacOptions,
+  versionScheme := Some("semver-spec")
 )
 
 lazy val root = (project in file(".")).aggregate(core, examples)
@@ -115,7 +116,7 @@ lazy val core = project
   .settings(
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := """fs2-mqtt""",
-      version := "0.5.0",
+      version := "0.6.0-SNAPSHOT",
       libraryDependencies ++= Seq(
         ("org.specs2" %% "specs2-core" % "4.12.0" % "test").cross(CrossVersion.for3Use2_13),
         ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.0" % "test").cross(CrossVersion.for3Use2_13),
