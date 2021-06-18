@@ -5,7 +5,7 @@ import cats.effect.testing.specs2.CatsIO
 import org.specs2.mutable._
 
 class IdGeneratorSpec extends Specification with CatsIO {
-  
+
   "An id generator" should {
 
     "Provide the next id" in {

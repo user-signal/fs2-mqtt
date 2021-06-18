@@ -37,7 +37,8 @@ case class ConnectFrame(
 ) extends Frame
 
 case class ConnackFrame(header: Header, returnCode: Int) extends Frame
-case class PublishFrame(header: Header, topic: String, messageIdentifier: Option[Int], payload: ByteVector) extends Frame
+case class PublishFrame(header: Header, topic: String, messageIdentifier: Option[Int], payload: ByteVector)
+    extends Frame
 case class PubackFrame(header: Header, messageIdentifier: Int) extends Frame
 case class PubrecFrame(header: Header, messageIdentifier: Int) extends Frame
 case class PubrelFrame(header: Header, messageIdentifier: Int) extends Frame
@@ -51,7 +52,7 @@ case class PingRespFrame(header: Header) extends Frame
 case class DisconnectFrame(header: Header) extends Frame
 
 object Frame {
-  implicit val codec: Codec[Frame] = 
+  implicit val codec: Codec[Frame] =
     discriminated[Frame]
       .by(uint4)
       .typecase(1, ConnectFrame.codec)
@@ -89,9 +90,11 @@ object ConnackFrame {
 }
 
 object PublishFrame {
-  implicit val codec: Codec[PublishFrame] = (headerCodec.flatPrepend { (hdr: Header) =>
-    variableSizeBytes(remainingLengthCodec, stringCodec :: conditional(hdr.qos != 0, messageIdCodec) :: bytes)
-  }).as[PublishFrame]
+  implicit val codec: Codec[PublishFrame] = headerCodec
+    .flatPrepend { (hdr: Header) =>
+      variableSizeBytes(remainingLengthCodec, stringCodec :: conditional(hdr.qos != 0, messageIdCodec) :: bytes)
+    }
+    .as[PublishFrame]
 }
 
 object PubackFrame {
