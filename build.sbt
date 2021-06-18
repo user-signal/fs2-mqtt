@@ -145,7 +145,7 @@ lazy val examples = project
     commonSettings ++ Seq(
       libraryDependencies ++= Seq(
         "io.monix" %% "monix" % "3.4.0",
-        "dev.zio" %% "zio-interop-cats" % "2.5.1.0"
+        "dev.zio" %% "zio-interop-cats" % "3.1.1.0"
       ),
       publish := ((): Unit),
       publishLocal := ((): Unit),
