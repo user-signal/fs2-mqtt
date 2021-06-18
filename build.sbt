@@ -120,12 +120,12 @@ lazy val core = project
       libraryDependencies ++= Seq(
         ("org.specs2" %% "specs2-core" % "4.12.0" % "test").cross(CrossVersion.for3Use2_13),
         ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.0" % "test").cross(CrossVersion.for3Use2_13),
-        "org.typelevel" %% "cats-effect-laws" % "2.5.1" % "test",
+        "org.typelevel" %% "cats-effect-laws" % "3.1.1" % "test",
 
         "org.scodec" %% "scodec-stream" % "2.0.2",
         
         "co.fs2" %% "fs2-io" % "2.5.6",
-        "org.typelevel" %% "cats-effect" % "2.5.1",
+        "org.typelevel" %% "cats-effect" % "3.1.1",
         ("com.github.cb372" %% "cats-retry" % "2.1.0").cross(CrossVersion.for3Use2_13)
       ) ++ {
         CrossVersion.partialVersion(scalaVersion.value) match {
