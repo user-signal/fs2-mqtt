@@ -126,7 +126,7 @@ lazy val core = project
         
         "co.fs2" %% "fs2-io" % "2.5.6",
         "org.typelevel" %% "cats-effect" % "2.5.1",
-        ("com.github.cb372" %% "cats-retry" % "2.1.0").cross(CrossVersion.for3Use2_13)
+        ("com.github.cb372" %% "cats-retry" % "2.1.1").cross(CrossVersion.for3Use2_13)
       ) ++ {
         CrossVersion.partialVersion(scalaVersion.value) match {
           case Some((3, _))  => Seq()
