@@ -16,8 +16,7 @@
 
 package net.sigusr.mqtt.impl.protocol
 
-import cats.effect.concurrent.{Deferred, Ref}
-import cats.effect.{Concurrent, ContextShift, Timer}
+import cats.effect.Concurrent
 import cats.implicits._
 import fs2.concurrent.{Queue, SignallingRef}
 import fs2.{INothing, Pipe, Pull, Stream}
@@ -29,6 +28,7 @@ import net.sigusr.mqtt.impl.frames.Builders.connectFrame
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Result.{Empty, QoS}
 import scodec.bits.ByteVector
+import cats.effect.{ Deferred, Ref, Temporal }
 
 trait Protocol[F[_]] {
 
@@ -46,7 +46,7 @@ trait Protocol[F[_]] {
 
 object Protocol {
 
-  def apply[F[_]: Concurrent: Timer: ContextShift](
+  def apply[F[_]: Concurrent: Temporal: ContextShift](
       sessionConfig: SessionConfig,
       transport: TransportConnector[F] => F[Transport[F]]
   ): F[Protocol[F]] = {

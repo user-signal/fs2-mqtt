@@ -1,12 +1,12 @@
 package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.IO
-import cats.effect.concurrent.Ref
 import cats.effect.testing.specs2.CatsEffect
 import cats.implicits.catsSyntaxFlatMapOps
 import org.specs2.mutable._
 
 import scala.concurrent.duration.DurationInt
+import cats.effect.Ref
 
 class TickerSpec extends Specification with CatsEffect {
   "A ticker" should {

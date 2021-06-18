@@ -17,10 +17,10 @@
 package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.Concurrent
-import cats.effect.concurrent.Ref
 import cats.implicits._
 
 import scala.collection.immutable.TreeMap
+import cats.effect.Ref
 
 trait AtomicMap[F[_], K, V] {
 

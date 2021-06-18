@@ -17,7 +17,7 @@
 package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.implicits._
-import cats.effect.{Blocker, Concurrent, ContextShift, Fiber, Timer}
+import cats.effect.{Concurrent, Fiber}
 import cats.implicits._
 import fs2.io.tcp.{Socket, SocketGroup}
 import fs2.{Pipe, Stream}
@@ -35,6 +35,7 @@ import scodec.stream.{StreamDecoder, StreamEncoder}
 
 import java.net.InetSocketAddress
 import scala.concurrent.duration._
+import cats.effect.{ Resource, Temporal }
 
 trait Transport[F[_]] {}
 
@@ -52,7 +53,7 @@ object Transport {
           else Stream.eval(Concurrent[F].unit)
       } yield frame
 
-  private def connect[F[_]: Concurrent: ContextShift: Timer](
+  private def connect[F[_]: Concurrent: ContextShift: Temporal](
       transportConfig: TransportConfig[F],
       connector: TransportConnector[F]
   ): F[Fiber[F, Unit]] = {
@@ -103,7 +104,7 @@ object Transport {
         } yield ()
 
       retryingOnAllErrors(policy, publishError) {
-        Blocker[F].use { blocker =>
+        Resource.unit[F].use { blocker =>
           SocketGroup[F](blocker).use { socketGroup =>
             socketGroup.client[F](new InetSocketAddress(transportConfig.host, transportConfig.port)).use { socket =>
               transportConfig.tlsConfig.fold(pump(socket)) { tlsConfig =>
@@ -123,7 +124,7 @@ object Transport {
     loop().start
   }
 
-  def apply[F[_]: Concurrent: ContextShift: Timer](
+  def apply[F[_]: Concurrent: ContextShift: Temporal](
       transportConfig: TransportConfig[F]
   )(connector: TransportConnector[F]): F[Transport[F]] =
     for {

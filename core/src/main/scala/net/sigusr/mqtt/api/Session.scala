@@ -16,7 +16,7 @@
 
 package net.sigusr.mqtt.api
 
-import cats.effect.{Concurrent, ContextShift, Resource, Timer}
+import cats.effect.{Concurrent, Resource}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
@@ -26,6 +26,7 @@ import net.sigusr.mqtt.impl.frames.Builders._
 import net.sigusr.mqtt.impl.frames._
 import net.sigusr.mqtt.impl.protocol.Result.QoS
 import net.sigusr.mqtt.impl.protocol.{IdGenerator, Protocol, Transport}
+import cats.effect.Temporal
 
 sealed case class Message(topic: String, payload: Vector[Byte])
 
@@ -50,12 +51,12 @@ trait Session[F[_]] {
 
 object Session {
 
-  def apply[F[_]: Concurrent: Timer: ContextShift](
+  def apply[F[_]: Concurrent: Temporal: ContextShift](
       transportConfig: TransportConfig[F],
       sessionConfig: SessionConfig
   ): Resource[F, Session[F]] = Resource(fromTransport(transportConfig, sessionConfig))
 
-  private def fromTransport[F[_]: Concurrent: Timer: ContextShift](
+  private def fromTransport[F[_]: Concurrent: Temporal: ContextShift](
       transportConfig: TransportConfig[F],
       sessionConfig: SessionConfig
   ): F[(Session[F], F[Unit])] =

@@ -17,7 +17,7 @@
 package net.sigusr.mqtt.api
 
 import cats.Applicative
-import cats.effect.{Blocker, ContextShift, Sync}
+import cats.effect.Sync
 import fs2.io.tls.{TLSContext, TLSParameters}
 import net.sigusr.mqtt.api.PredefinedRetryPolicy.{ConstantDelay, ExponentialBackoff, FibonacciBackoff, FullJitter}
 import net.sigusr.mqtt.api.RetryConfig.Predefined
@@ -74,7 +74,7 @@ sealed case class TLSConfig[F[_]: Sync: ContextShift](
     private val tlsContextKind: TLSContextKind,
     tlsParameters: TLSParameters
 ) {
-  def contextOf(blocker: Blocker): F[TLSContext] =
+  def contextOf: F[TLSContext] =
     tlsContextKind match {
       case TLSContextKind.System   => TLSContext.system[F](blocker)
       case TLSContextKind.Insecure => TLSContext.insecure[F](blocker)

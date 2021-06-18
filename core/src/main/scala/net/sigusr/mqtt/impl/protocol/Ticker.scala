@@ -16,14 +16,14 @@
 
 package net.sigusr.mqtt.impl.protocol
 
-import cats.effect.concurrent.Ref
 import cats.effect.implicits._
-import cats.effect.{Concurrent, Timer}
+import cats.effect.Concurrent
 import cats.implicits._
 import fs2.Stream
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
+import cats.effect.{ Ref, Temporal }
 
 trait Ticker[F[_]] {
 
@@ -35,7 +35,7 @@ trait Ticker[F[_]] {
 
 object Ticker {
 
-  def apply[F[_]: Concurrent: Timer](interval: Long, program: F[Unit]): F[Ticker[F]] =
+  def apply[F[_]: Concurrent: Temporal](interval: Long, program: F[Unit]): F[Ticker[F]] =
     for {
       s <- Ref.of[F, Long](1)
       f <-
