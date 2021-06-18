@@ -124,7 +124,7 @@ lazy val core = project
 
         "org.scodec" %% "scodec-stream" % "2.0.2",
         
-        "co.fs2" %% "fs2-io" % "2.5.6",
+        "co.fs2" %% "fs2-io" % "3.0.4",
         "org.typelevel" %% "cats-effect" % "2.5.1",
         ("com.github.cb372" %% "cats-retry" % "2.1.0").cross(CrossVersion.for3Use2_13)
       ) ++ {
