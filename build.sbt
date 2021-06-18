@@ -122,7 +122,7 @@ lazy val core = project
         ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.0" % "test").cross(CrossVersion.for3Use2_13),
         "org.typelevel" %% "cats-effect-laws" % "2.5.1" % "test",
 
-        "org.scodec" %% "scodec-stream" % "2.0.2",
+        "org.scodec" %% "scodec-stream" % "3.0.1",
         
         "co.fs2" %% "fs2-io" % "2.5.6",
         "org.typelevel" %% "cats-effect" % "2.5.1",
