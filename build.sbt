@@ -131,7 +131,7 @@ lazy val core = project
         CrossVersion.partialVersion(scalaVersion.value) match {
           case Some((3, _))  => Seq()
           case _             => Seq(
-            ("com.beachape" %% "enumeratum" % "1.6.1").cross(CrossVersion.for3Use2_13),
+            ("com.beachape" %% "enumeratum" % "1.7.0").cross(CrossVersion.for3Use2_13),
           )
         }
       }
