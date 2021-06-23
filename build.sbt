@@ -119,14 +119,20 @@ lazy val commonSettings = Seq(
   versionScheme := Some("semver-spec")
 )
 
-lazy val root = (project in file(".")).aggregate(core, examples)
+lazy val fs2_mqtt = project
+  .in(file("."))
+  .settings(Seq(
+    publish / skip := true,
+    sonatypeProfileName := "net.sigusr"
+  ))
+  .aggregate(core, examples)
 
 lazy val core = project
   .in(file("core"))
   .configs(IntegrationTest)
   .settings(
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
-      name := """fs2-mqtt""",
+      name := "fs2-mqtt",
       libraryDependencies ++= Seq(
         ("org.specs2" %% "specs2-core" % "4.12.1" % "test").cross(CrossVersion.for3Use2_13),
         ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.4" % "test").cross(CrossVersion.for3Use2_13),
@@ -156,9 +162,7 @@ lazy val examples = project
         "io.monix" %% "monix" % "3.4.0",
         "dev.zio" %% "zio-interop-cats" % "2.5.1.0"
       ),
-      publish := ((): Unit),
-      publishLocal := ((): Unit),
-      publishArtifact := false
+      publish / skip := true
     )
   )
 
