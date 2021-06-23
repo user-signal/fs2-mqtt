@@ -31,7 +31,8 @@ lazy val commonSettings = Seq(
       "Frédéric Cabestre",
       "frederic.cabestre@sigusr.net",
       url("https://github.com/fcabestre")
-    )),
+    )
+  ),
   organization := "net.sigusr",
   scalaVersion := scala213,
   crossScalaVersions := supportedScalaVersion,
@@ -121,10 +122,12 @@ lazy val commonSettings = Seq(
 
 lazy val fs2_mqtt = project
   .in(file("."))
-  .settings(Seq(
-    publish / skip := true,
-    sonatypeProfileName := "net.sigusr"
-  ))
+  .settings(
+    Seq(
+      publish / skip := true,
+      sonatypeProfileName := "net.sigusr"
+    )
+  )
   .aggregate(core, examples)
 
 lazy val core = project
@@ -136,7 +139,6 @@ lazy val core = project
       libraryDependencies ++= Seq(
         ("org.specs2" %% "specs2-core" % "4.12.1" % "test").cross(CrossVersion.for3Use2_13),
         ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.4" % "test").cross(CrossVersion.for3Use2_13),
-
         "org.typelevel" %% "cats-effect-laws" % "2.5.1" % "test",
         "org.scodec" %% "scodec-stream" % "2.0.2",
         "co.fs2" %% "fs2-io" % "2.5.6",
@@ -144,10 +146,11 @@ lazy val core = project
         ("com.github.cb372" %% "cats-retry" % "2.1.1").cross(CrossVersion.for3Use2_13)
       ) ++ {
         CrossVersion.partialVersion(scalaVersion.value) match {
-          case Some((3, _))  => Seq()
-          case _             => Seq(
-            ("com.beachape" %% "enumeratum" % "1.7.0").cross(CrossVersion.for3Use2_13),
-          )
+          case Some((3, _)) => Seq()
+          case _ =>
+            Seq(
+              ("com.beachape" %% "enumeratum" % "1.7.0").cross(CrossVersion.for3Use2_13)
+            )
         }
       }
     )
@@ -200,4 +203,3 @@ def publishingSettings: Seq[Setting[_]] =
     Test / publishArtifact := false,
     pomIncludeRepository := (_ => false)
   )
-

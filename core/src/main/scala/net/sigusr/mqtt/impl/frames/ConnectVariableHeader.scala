@@ -32,8 +32,7 @@ case class ConnectVariableHeader(
 
 object ConnectVariableHeader {
 
-  /**
-    * This is the, once for all encoded, protocol name [MQIsdp] and protocol version [3]
+  /** This is the, once for all encoded, protocol name [MQIsdp] and protocol version [3]
     */
   val connectVariableHeaderFixedBytes: BitVector = BitVector(hex"00064D514973647003")
 
