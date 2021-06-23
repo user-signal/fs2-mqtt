@@ -127,7 +127,8 @@ lazy val core = project
       name := """fs2-mqtt""",
       libraryDependencies ++= Seq(
         ("org.specs2" %% "specs2-core" % "4.12.1" % "test").cross(CrossVersion.for3Use2_13),
-        ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.0" % "test").cross(CrossVersion.for3Use2_13),
+        ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.4" % "test").cross(CrossVersion.for3Use2_13),
+
         "org.typelevel" %% "cats-effect-laws" % "2.5.1" % "test",
 
         "org.scodec" %% "scodec-stream" % "2.0.2",
