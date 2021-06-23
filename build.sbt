@@ -23,6 +23,15 @@ val filterConsoleScalacOptions = { options: Seq[String] =>
 }
 
 lazy val commonSettings = Seq(
+  homepage := Some(url("https://github.com/user-signal/fs2-mqtt")),
+  licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+  developers := List(
+    Developer(
+      "fcabestre",
+      "Frédéric Cabestre",
+      "frederic.cabestre@sigusr.net",
+      url("https://github.com/fcabestre")
+    )),
   organization := "net.sigusr",
   scalaVersion := scala213,
   crossScalaVersions := supportedScalaVersion,
@@ -116,10 +125,10 @@ lazy val core = project
   .settings(
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := """fs2-mqtt""",
-      version := "0.6.0-SNAPSHOT",
       libraryDependencies ++= Seq(
-        ("org.specs2" %% "specs2-core" % "4.12.0" % "test").cross(CrossVersion.for3Use2_13),
+        ("org.specs2" %% "specs2-core" % "4.12.1" % "test").cross(CrossVersion.for3Use2_13),
         ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.4" % "test").cross(CrossVersion.for3Use2_13),
+
         "org.typelevel" %% "cats-effect-laws" % "2.5.1" % "test",
 
         "org.scodec" %% "scodec-stream" % "2.0.2",
@@ -131,7 +140,7 @@ lazy val core = project
         CrossVersion.partialVersion(scalaVersion.value) match {
           case Some((3, _))  => Seq()
           case _             => Seq(
-            ("com.beachape" %% "enumeratum" % "1.6.1").cross(CrossVersion.for3Use2_13),
+            ("com.beachape" %% "enumeratum" % "1.7.0").cross(CrossVersion.for3Use2_13),
           )
         }
       }
@@ -178,62 +187,13 @@ def projectUrl = "https://github.com/user-signal/fs2-mqtt"
 def developerId = "fcabestre"
 def developerName = "Frédéric Cabestre"
 def licenseName = "Apache-2.0"
-def licenseUrl = "http://opensource.org/licenses/Apache-2.0"
 def licenseDistribution = "repo"
 def scmUrl = projectUrl
 def scmConnection = "scm:git:" + scmUrl
 
-def generatePomExtra(scalaVersion: String): xml.NodeSeq =
-  <url>
-    {projectUrl}
-  </url>
-    <licenses>
-      <license>
-        <name>
-          {licenseName}
-        </name>
-        <url>
-          {licenseUrl}
-        </url>
-        <distribution>
-          {licenseDistribution}
-        </distribution>
-      </license>
-    </licenses>
-    <scm>
-      <url>
-        {scmUrl}
-      </url>
-      <connection>
-        {scmConnection}
-      </connection>
-    </scm>
-    <developers>
-      <developer>
-        <id>
-          {developerId}
-        </id>
-        <name>
-          {developerName}
-        </name>
-      </developer>
-    </developers>
-
 def publishingSettings: Seq[Setting[_]] =
   Seq(
-    credentialsSetting,
-    publishMavenStyle := true,
-    publishTo := version((v: String) => Some(if (v.trim.endsWith("SNAPSHOT")) ossSnapshots else ossStaging)).value,
     Test / publishArtifact := false,
-    pomIncludeRepository := (_ => false),
-    pomExtra := scalaVersion(generatePomExtra).value
+    pomIncludeRepository := (_ => false)
   )
 
-lazy val credentialsSetting = credentials += {
-  Seq("SONATYPE_USER", "SONATYPE_PASS").map(k => sys.env.get(k)) match {
-    case Seq(Some(user), Some(pass)) =>
-      Credentials("Sonatype Nexus Repository Manager", "oss.sonatype.org", user, pass)
-    case _ =>
-      Credentials(Path.userHome / ".ivy2" / ".credentials")
-  }
-}

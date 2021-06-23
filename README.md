@@ -27,8 +27,7 @@
 [tpolecat]: https://twitter.com/tpolecat
 [zio]: https://zio.dev
 
-# A pure functional Scala MQTT client library [![Build Status][build-status-icon]][build-status] [![Coverage Status][coverage-status-icon]][coverage-status]
-
+# A pure functional Scala MQTT client library [![Build Status][build-status-icon]][build-status] [![codecov](https://codecov.io/gh/user-signal/fs2-mqtt/branch/master/graph/badge.svg?token=08C9HM2J0L)](https://codecov.io/gh/user-signal/fs2-mqtt)
 ## Back then...
 
 Late 2014, I initiated an [MQTT client library for Scala][akka-mqtt] side project. 
@@ -86,10 +85,10 @@ In case you want to easily give a try to this library, without the burden of add
 to Maven Central. In this case just add,
 
 ```scala
-scalaVersion := "2.13.4"
+scalaVersion := "3.0.0"
 
 libraryDependencies ++= Seq(
-    "net.sigusr" %% "fs2-mqtt" % "0.4.2"
+    "net.sigusr" %% "fs2-mqtt" % "0.5.0"
 )
 ```
 
