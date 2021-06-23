@@ -11,4 +11,3 @@ object Direction extends CharEnum[Direction] {
 
   val values: immutable.IndexedSeq[Direction] = findValues
 }
-

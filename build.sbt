@@ -48,69 +48,71 @@ lazy val commonSettings = Seq(
     "-unchecked"
   ),
   scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((2, 12)) => Seq(
-      "-Xcheckinit",
-      "-Xlint:adapted-args",
-      "-Xlint:constant",
-      "-Xlint:delayedinit-select",
-      "-Xlint:doc-detached",
-      "-Xlint:inaccessible",
-      "-Xlint:infer-any",
-      "-Xlint:missing-interpolator",
-      "-Xlint:nullary-override",
-      "-Xlint:nullary-unit",
-      "-Xlint:option-implicit",
-      "-Xlint:package-object-classes",
-      "-Xlint:poly-implicit-overload",
-      "-Xlint:private-shadow",
-      "-Xlint:stars-align",
-      "-explaintypes",
-    )
-    case Some((2, 13)) => Seq(
-      "-Wdead-code",
-      "-Wextra-implicit",
-      "-Wnumeric-widen",
-      "-Wunused:implicits",
-      "-Wunused:imports",
-      "-Wunused:locals",
-      "-Wunused:params",
-      "-Wunused:patvars",
-      "-Wunused:privates",
-      "-Wvalue-discard",
-      "-Xcheckinit",
-      "-Xlint:adapted-args",
-      "-Xlint:constant",
-      "-Xlint:delayedinit-select",
-      "-Xlint:deprecation",
-      "-Xlint:doc-detached",
-      "-Xlint:inaccessible",
-      "-Xlint:infer-any",
-      "-Xlint:missing-interpolator",
-      "-Xlint:nullary-unit",
-      "-Xlint:option-implicit",
-      "-Xlint:package-object-classes",
-      "-Xlint:poly-implicit-overload",
-      "-Xlint:private-shadow",
-      "-Xlint:stars-align",
-      "-Xlint:type-parameter-shadow",
-      "-Ymacro-annotations",
-      "-explaintypes",
-    )
-    case _ => Seq() 
+    case Some((2, 12)) =>
+      Seq(
+        "-Xcheckinit",
+        "-Xlint:adapted-args",
+        "-Xlint:constant",
+        "-Xlint:delayedinit-select",
+        "-Xlint:doc-detached",
+        "-Xlint:inaccessible",
+        "-Xlint:infer-any",
+        "-Xlint:missing-interpolator",
+        "-Xlint:nullary-override",
+        "-Xlint:nullary-unit",
+        "-Xlint:option-implicit",
+        "-Xlint:package-object-classes",
+        "-Xlint:poly-implicit-overload",
+        "-Xlint:private-shadow",
+        "-Xlint:stars-align",
+        "-explaintypes"
+      )
+    case Some((2, 13)) =>
+      Seq(
+        "-Wdead-code",
+        "-Wextra-implicit",
+        "-Wnumeric-widen",
+        "-Wunused:implicits",
+        "-Wunused:imports",
+        "-Wunused:locals",
+        "-Wunused:params",
+        "-Wunused:patvars",
+        "-Wunused:privates",
+        "-Wvalue-discard",
+        "-Xcheckinit",
+        "-Xlint:adapted-args",
+        "-Xlint:constant",
+        "-Xlint:delayedinit-select",
+        "-Xlint:deprecation",
+        "-Xlint:doc-detached",
+        "-Xlint:inaccessible",
+        "-Xlint:infer-any",
+        "-Xlint:missing-interpolator",
+        "-Xlint:nullary-unit",
+        "-Xlint:option-implicit",
+        "-Xlint:package-object-classes",
+        "-Xlint:poly-implicit-overload",
+        "-Xlint:private-shadow",
+        "-Xlint:stars-align",
+        "-Xlint:type-parameter-shadow",
+        "-Ymacro-annotations",
+        "-explaintypes"
+      )
+    case _ => Seq()
   }),
   Compile / unmanagedSourceDirectories ++= {
     val sourceDir = (Compile / sourceDirectory).value
     CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((3, _))  => Seq(sourceDir / "scala-3")
-      case _             => Seq(sourceDir / "scala-2")
+      case Some((3, _)) => Seq(sourceDir / "scala-3")
+      case _            => Seq(sourceDir / "scala-2")
     }
   },
   Compile / console / scalacOptions ~= filterConsoleScalacOptions,
   Test / scalacOptions ++= {
     val sourceDir = (Compile / sourceDirectory).value
     CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((3, _))  => Seq()
-      case _             => Seq("-Yrangepos")
+      case Some((3, _)) => Seq()
+      case _            => Seq("-Yrangepos")
     }
   },
   Test / console / scalacOptions ~= filterConsoleScalacOptions,
@@ -130,9 +132,7 @@ lazy val core = project
         ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.4" % "test").cross(CrossVersion.for3Use2_13),
 
         "org.typelevel" %% "cats-effect-laws" % "2.5.1" % "test",
-
         "org.scodec" %% "scodec-stream" % "2.0.2",
-        
         "co.fs2" %% "fs2-io" % "2.5.6",
         "org.typelevel" %% "cats-effect" % "2.5.1",
         ("com.github.cb372" %% "cats-retry" % "2.1.0").cross(CrossVersion.for3Use2_13)

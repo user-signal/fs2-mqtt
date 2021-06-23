@@ -35,9 +35,11 @@ class TickerSpec extends Specification with CatsEffect {
       val context = new net.sigusr.mqtt.SpecUtils.CatsContext
       import context._
       Ref[IO].of(false).flatMap { ref =>
-        Ticker[IO](30, ref.set(true)).flatMap { t =>
-          ioTimer.sleep(20.seconds) *> t.reset
-        }.unsafeToFuture()
+        Ticker[IO](30, ref.set(true))
+          .flatMap { t =>
+            ioTimer.sleep(20.seconds) *> t.reset
+          }
+          .unsafeToFuture()
         ec.tick(30.seconds)
         ref.get.map(_ must beFalse)
       }
@@ -48,14 +50,18 @@ class TickerSpec extends Specification with CatsEffect {
       import context._
       Ref[IO].of(false).flatMap { ref =>
         val ticker = Ticker[IO](30, ref.set(true))
-        ticker.flatMap { t =>
-          ioTimer.sleep(30.seconds) *> t.cancel
-        }.unsafeToFuture()
+        ticker
+          .flatMap { t =>
+            ioTimer.sleep(30.seconds) *> t.cancel
+          }
+          .unsafeToFuture()
         ec.tick(30.seconds)
         ref.get.map(_ must beFalse)
-        ticker.flatMap { t =>
-          ioTimer.sleep(31.seconds) *> t.cancel
-        }.unsafeToFuture()
+        ticker
+          .flatMap { t =>
+            ioTimer.sleep(31.seconds) *> t.cancel
+          }
+          .unsafeToFuture()
         ec.tick(30.seconds)
         ref.get.map(_ must beTrue)
       }
