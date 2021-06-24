@@ -17,7 +17,7 @@
 package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.concurrent.{Deferred, Ref}
-import cats.effect.{Concurrent, ContextShift, Timer}
+import cats.effect.{Concurrent, Timer}
 import cats.implicits._
 import fs2.concurrent.{Queue, SignallingRef}
 import fs2.{INothing, Pipe, Pull, Stream}
@@ -46,7 +46,7 @@ trait Protocol[F[_]] {
 
 object Protocol {
 
-  def apply[F[_]: Concurrent: Timer: ContextShift](
+  def apply[F[_]: Concurrent: Timer](
       sessionConfig: SessionConfig,
       transport: TransportConnector[F] => F[Transport[F]]
   ): F[Protocol[F]] = {

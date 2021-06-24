@@ -86,7 +86,7 @@ object TLSConfig {
     new TLSConfig[F](tlsContextKind, tlsParameters)
 }
 
-sealed case class TransportConfig[F[_]: Applicative](
+sealed case class TransportConfig[F[_]](
     host: String,
     port: Int,
     tlsConfig: Option[TLSConfig[F]] = None,

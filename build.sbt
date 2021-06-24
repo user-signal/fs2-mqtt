@@ -2,7 +2,7 @@ import sbt.Keys._
 import sbt._
 
 lazy val scala3 = "3.0.0"
-lazy val scala213 = "2.13.4"
+lazy val scala213 = "2.13.6"
 lazy val scala212 = "2.12.14"
 lazy val supportedScalaVersion = Seq(scala3, scala213, scala212)
 
