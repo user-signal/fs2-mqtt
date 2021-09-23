@@ -3,7 +3,7 @@ import sbt._
 
 lazy val scala3 = "3.0.2"
 lazy val scala213 = "2.13.6"
-lazy val scala212 = "2.12.14"
+lazy val scala212 = "2.12.15"
 lazy val supportedScalaVersion = Seq(scala3, scala213, scala212)
 
 lazy val IntegrationTest = config("it").extend(Test)
@@ -137,7 +137,7 @@ lazy val core = project
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := "fs2-mqtt",
       libraryDependencies ++= Seq(
-        ("org.specs2" %% "specs2-core" % "4.12.11" % "test").cross(CrossVersion.for3Use2_13),
+        ("org.specs2" %% "specs2-core" % "4.12.12" % "test").cross(CrossVersion.for3Use2_13),
         ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.4" % "test").cross(CrossVersion.for3Use2_13),
         "org.typelevel" %% "cats-effect-laws" % "2.5.1" % "test",
         "org.scodec" %% "scodec-stream" % "2.0.2",
