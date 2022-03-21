@@ -137,13 +137,14 @@ lazy val core = project
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := "fs2-mqtt",
       libraryDependencies ++= Seq(
-        ("org.specs2" %% "specs2-core" % "4.15.0" % "test").cross(CrossVersion.for3Use2_13),
-        ("com.codecommit" %% "cats-effect-testing-specs2" % "0.5.4" % "test").cross(CrossVersion.for3Use2_13),
-        "org.typelevel" %% "cats-effect-laws" % "2.5.1" % "test",
-        "org.scodec" %% "scodec-stream" % "2.0.2",
-        "co.fs2" %% "fs2-io" % "2.5.6",
-        "org.typelevel" %% "cats-effect" % "2.5.1",
-        ("com.github.cb372" %% "cats-retry" % "2.1.1").cross(CrossVersion.for3Use2_13)
+        ("org.specs2" %% "specs2-core" % "4.14.1" % "test").cross(CrossVersion.for3Use2_13),
+        "org.typelevel" %% "cats-effect-testing-specs2" % "1.4.0" % "test",
+        "org.typelevel" %% "cats-effect-laws" % "3.3.7" % "test",
+        "org.typelevel" %% "cats-effect-testkit"% "3.3.7" % "test",
+        "org.scodec" %% "scodec-stream" % "3.0.2",
+        "co.fs2" %% "fs2-io" % "3.2.5",
+        "org.typelevel" %% "cats-effect" % "3.3.8",
+        "com.github.cb372" %% "cats-retry" % "3.1.0"
       ) ++ {
         CrossVersion.partialVersion(scalaVersion.value) match {
           case Some((3, _)) => Seq()
@@ -162,8 +163,7 @@ lazy val examples = project
   .settings(
     commonSettings ++ Seq(
       libraryDependencies ++= Seq(
-        "io.monix" %% "monix" % "3.4.0",
-        "dev.zio" %% "zio-interop-cats" % "2.5.1.0"
+        "dev.zio" %% "zio-interop-cats" % "3.2.9.1"
       ),
       publish / skip := true
     )

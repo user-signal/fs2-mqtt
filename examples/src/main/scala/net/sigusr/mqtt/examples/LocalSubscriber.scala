@@ -16,7 +16,9 @@
 
 package net.sigusr.mqtt.examples
 
+import cats.effect.std.Console
 import cats.implicits._
+import com.comcast.ip4s.IpLiteralSyntax
 import fs2.Stream
 import fs2.concurrent.SignallingRef
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
@@ -51,8 +53,8 @@ object LocalSubscriber extends App {
     )
     val transportConfig =
       TransportConfig[Task](
-        "localhost",
-        1883,
+        host"localhost",
+        port"1883",
         // TLS support looks like
         // 8883,
         // tlsConfig = Some(TLSConfig(TLSContextKind.System)),
@@ -67,6 +69,7 @@ object LocalSubscriber extends App {
         password = Some("yolo"),
         keepAlive = 5
       )
+    implicit val console: Console[Task] = Console.make[Task]
     Session[Task](transportConfig, sessionConfig).use { session =>
       SignallingRef[Task, Boolean](false)
         .flatMap { stopSignal =>
@@ -80,14 +83,14 @@ object LocalSubscriber extends App {
             s <- session.subscribe(subscribedTopics)
             _ <- s.traverse { p =>
               putStrLn[Task](
-                s"Topic ${Console.CYAN}${p._1}${Console.RESET} subscribed with QoS " +
-                  s"${Console.CYAN}${p._2.show}${Console.RESET}"
+                s"Topic ${scala.Console.CYAN}${p._1}${scala.Console.RESET} subscribed with QoS " +
+                  s"${scala.Console.CYAN}${p._2.show}${scala.Console.RESET}"
               )
             }
             _ <- ZIO.sleep(Duration(23, TimeUnit.SECONDS))
             _ <- session.unsubscribe(unsubscribedTopics)
             _ <-
-              putStrLn[Task](s"Topic ${Console.CYAN}${unsubscribedTopics.mkString(", ")}${Console.RESET} unsubscribed")
+              putStrLn[Task](s"Topic ${scala.Console.CYAN}${unsubscribedTopics.mkString(", ")}${scala.Console.RESET} unsubscribed")
             _ <- stopSignal.discrete.compile.drain
           } yield ()
           val reader = session.messages.flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
@@ -100,12 +103,12 @@ object LocalSubscriber extends App {
   }.fold(_ => ExitCode.failure, _ => ExitCode.success)
 
   private def processMessages(stopSignal: SignallingRef[Task, Boolean]): Message => Stream[Task, Unit] = {
-    case Message(LocalSubscriber.stopTopic, _) => Stream.eval_(stopSignal.set(true))
+    case Message(LocalSubscriber.stopTopic, _) => Stream.exec(stopSignal.set(true))
     case Message(topic, payload) =>
       Stream.eval(Task {
         println(
-          s"Topic ${Console.CYAN}$topic${Console.RESET}: " +
-            s"${Console.BOLD}${new String(payload.toArray, "UTF-8")}${Console.RESET}"
+          s"Topic ${scala.Console.CYAN}$topic${scala.Console.RESET}: " +
+            s"${scala.Console.BOLD}${new String(payload.toArray, "UTF-8")}${scala.Console.RESET}"
         )
       })
   }

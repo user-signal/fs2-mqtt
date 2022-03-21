@@ -8,9 +8,6 @@ import org.specs2.mutable._
 // http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718025
 class IdGeneratorSpec extends Specification with CatsEffect {
 
-  val context = new net.sigusr.mqtt.SpecUtils.CatsContext
-  import context._
-
   "An id generator" should {
 
     "Provide ids > 0" in {

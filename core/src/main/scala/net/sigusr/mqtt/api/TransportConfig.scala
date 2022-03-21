@@ -17,8 +17,9 @@
 package net.sigusr.mqtt.api
 
 import cats.Applicative
-import cats.effect.{Blocker, ContextShift, Sync}
-import fs2.io.tls.{TLSContext, TLSParameters}
+import cats.effect.Async
+import com.comcast.ip4s.{Host, Port}
+import fs2.io.net.tls.{TLSContext, TLSParameters}
 import net.sigusr.mqtt.api.PredefinedRetryPolicy.{ConstantDelay, ExponentialBackoff, FibonacciBackoff, FullJitter}
 import net.sigusr.mqtt.api.RetryConfig.Predefined
 import retry.{RetryPolicies, RetryPolicy}
@@ -70,25 +71,25 @@ object TLSContextKind {
   case object Insecure extends TLSContextKind
 }
 
-sealed case class TLSConfig[F[_]: Sync: ContextShift](
+sealed case class TLSConfig[F[_]: Async](
     private val tlsContextKind: TLSContextKind,
     tlsParameters: TLSParameters
 ) {
-  def contextOf(blocker: Blocker): F[TLSContext] =
+  def contextOf: F[TLSContext[F]] =
     tlsContextKind match {
-      case TLSContextKind.System   => TLSContext.system[F](blocker)
-      case TLSContextKind.Insecure => TLSContext.insecure[F](blocker)
+      case TLSContextKind.System   => TLSContext.Builder.forAsync[F].system
+      case TLSContextKind.Insecure => TLSContext.Builder.forAsync[F].insecure
     }
 }
 
 object TLSConfig {
-  def apply[F[_]: Sync: ContextShift](tlsContextKind: TLSContextKind, tlsParameters: TLSParameters = TLSParameters()) =
+  def apply[F[_]: Async](tlsContextKind: TLSContextKind, tlsParameters: TLSParameters = TLSParameters()) =
     new TLSConfig[F](tlsContextKind, tlsParameters)
 }
 
 sealed case class TransportConfig[F[_]](
-    host: String,
-    port: Int,
+    host: Host,
+    port: Port,
     tlsConfig: Option[TLSConfig[F]] = None,
     readTimeout: Option[FiniteDuration] = None,
     writeTimeout: Option[FiniteDuration] = None,

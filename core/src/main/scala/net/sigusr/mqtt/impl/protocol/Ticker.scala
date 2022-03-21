@@ -16,9 +16,8 @@
 
 package net.sigusr.mqtt.impl.protocol
 
-import cats.effect.concurrent.Ref
+import cats.effect.{Ref, Temporal}
 import cats.effect.implicits._
-import cats.effect.{Concurrent, Timer}
 import cats.implicits._
 import fs2.Stream
 
@@ -35,11 +34,11 @@ trait Ticker[F[_]] {
 
 object Ticker {
 
-  def apply[F[_]: Concurrent: Timer](interval: Long, program: F[Unit]): F[Ticker[F]] =
+  def apply[F[_]: Temporal](interval: Long, program: F[Unit]): F[Ticker[F]] =
     for {
       s <- Ref.of[F, Long](1)
       f <-
-        (Stream.fixedRate(FiniteDuration(1, TimeUnit.SECONDS)) >>
+        (Stream.fixedRate(FiniteDuration(1, TimeUnit.SECONDS), dampen = false) >>
           Stream.eval(s.modify(l => (l + 1, l))))
           .filter(_ % interval == 0)
           .evalMap(_ => program)

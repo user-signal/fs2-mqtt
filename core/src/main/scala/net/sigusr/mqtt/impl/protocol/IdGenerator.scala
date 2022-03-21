@@ -17,7 +17,7 @@
 package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.Concurrent
-import cats.effect.concurrent.Ref
+import cats.effect.Ref
 import cats.syntax.all._
 
 trait IdGenerator[F[_]] {
