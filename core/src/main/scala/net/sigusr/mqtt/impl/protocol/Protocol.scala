@@ -16,10 +16,10 @@
 
 package net.sigusr.mqtt.impl.protocol
 
-import cats.effect.concurrent.{Deferred, Ref}
-import cats.effect.{Concurrent, Timer}
+import cats.effect.{Concurrent, Deferred, Ref, Temporal}
+import cats.effect.std.Queue
 import cats.implicits._
-import fs2.concurrent.{Queue, SignallingRef}
+import fs2.concurrent.SignallingRef
 import fs2.{INothing, Pipe, Pull, Stream}
 import net.sigusr.mqtt.api.ConnectionState.{Connected, Disconnected, Error, SessionStarted}
 import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
@@ -46,7 +46,7 @@ trait Protocol[F[_]] {
 
 object Protocol {
 
-  def apply[F[_]: Concurrent: Timer](
+  def apply[F[_]: Temporal](
       sessionConfig: SessionConfig,
       transport: TransportConnector[F] => F[Transport[F]]
   ): F[Protocol[F]] = {
@@ -69,21 +69,21 @@ object Protocol {
               case PublishFrame(header: Header, topic: String, messageIdentifier: Option[Int], payload: ByteVector) =>
                 (header.qos, messageIdentifier) match {
                   case (AtMostOnce.value, None) =>
-                    Pull.eval(messageQueue.enqueue1(Message(topic, payload.toArray.toVector))) >>
+                    Pull.eval(messageQueue.offer(Message(topic, payload.toArray.toVector))) >>
                       loop(tl, inFlightInBound)
                   case (AtLeastOnce.value, Some(id)) =>
                     Pull.eval(
-                      messageQueue.enqueue1(Message(topic, payload.toArray.toVector)) >> frameQueue
-                        .enqueue1(PubackFrame(Header(), id))
+                      messageQueue.offer(Message(topic, payload.toArray.toVector)) >> frameQueue
+                        .offer(PubackFrame(Header(), id))
                     ) >>
                       loop(tl, inFlightInBound)
                   case (ExactlyOnce.value, Some(id)) =>
                     Pull.eval(
                       if (inFlightInBound.contains(id))
-                        frameQueue.enqueue1(PubrecFrame(Header(), id))
+                        frameQueue.offer(PubrecFrame(Header(), id))
                       else
-                        messageQueue.enqueue1(Message(topic, payload.toArray.toVector)) >> frameQueue
-                          .enqueue1(PubrecFrame(Header(), id))
+                        messageQueue.offer(Message(topic, payload.toArray.toVector)) >> frameQueue
+                          .offer(PubrecFrame(Header(), id))
                     ) >>
                       loop(tl, inFlightInBound + id)
                   case (_, _) => Pull.eval(stateSignal.set(Error(ProtocolError)) >> closeSignal.set(true))
@@ -92,25 +92,25 @@ object Protocol {
               case PubackFrame(_: Header, messageIdentifier) =>
                 Pull.eval(
                   inFlightOutBound.remove(messageIdentifier) >> pendingResults.remove(messageIdentifier) >>=
-                    (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))
+                    (_.fold(Concurrent[F].unit)(_.complete(Empty).void))
                 ) >>
                   loop(tl, inFlightInBound)
 
               case PubrelFrame(header, messageIdentifier) =>
-                Pull.eval(frameQueue.enqueue1(PubcompFrame(header.copy(qos = 0), messageIdentifier))) >>
+                Pull.eval(frameQueue.offer(PubcompFrame(header.copy(qos = 0), messageIdentifier))) >>
                   loop(tl, inFlightInBound - messageIdentifier)
 
               case PubcompFrame(_, messageIdentifier) =>
                 Pull.eval(
                   inFlightOutBound.remove(messageIdentifier) >> pendingResults.remove(messageIdentifier) >>=
-                    (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))
+                    (_.fold(Concurrent[F].unit)(_.complete(Empty).void))
                 ) >>
                   loop(tl, inFlightInBound)
 
               case PubrecFrame(header, messageIdentifier) =>
                 val pubrelFrame = PubrelFrame(header, messageIdentifier)
                 Pull.eval(
-                  inFlightOutBound.update(messageIdentifier, pubrelFrame) >> frameQueue.enqueue1(pubrelFrame)
+                  inFlightOutBound.update(messageIdentifier, pubrelFrame) >> frameQueue.offer(pubrelFrame)
                 ) >>
                   loop(tl, inFlightInBound)
 
@@ -120,14 +120,14 @@ object Protocol {
               case UnsubackFrame(_: Header, messageIdentifier) =>
                 Pull.eval(
                   inFlightOutBound.remove(messageIdentifier) >> pendingResults.remove(messageIdentifier) >>=
-                    (_.fold(Concurrent[F].pure(()))(_.complete(Empty)))
+                    (_.fold(Concurrent[F].unit)(_.complete(Empty).void))
                 ) >>
                   loop(tl, inFlightInBound)
 
               case SubackFrame(_: Header, messageIdentifier, topics) =>
                 Pull.eval(
                   inFlightOutBound.remove(messageIdentifier) >> pendingResults.remove(messageIdentifier) >>=
-                    (_.fold(Concurrent[F].pure(()))(_.complete(QoS(topics))))
+                    (_.fold(Concurrent[F].unit)(_.complete(QoS(topics)).void))
                 ) >>
                   loop(tl, inFlightInBound)
 
@@ -188,7 +188,7 @@ object Protocol {
         frameQueue: Queue[F, Frame],
         closeSignal: SignallingRef[F, Boolean]
     ): F[Unit] =
-      pingAcknowledged.get >>= (if (_) pingAcknowledged.set(false) >> frameQueue.enqueue1(PingReqFrame(Header()))
+      pingAcknowledged.get >>= (if (_) pingAcknowledged.set(false) >> frameQueue.offer(PingReqFrame(Header()))
                                 else pingAcknowledged.set(true) >> closeSignal.set(true))
 
     for {
@@ -214,7 +214,7 @@ object Protocol {
       )
 
       outbound: Stream[F, Frame] =
-        frameQueue.dequeue.through(outboundMessagesInterpreter(inFlightOutBound, stateSignal, pingTicker))
+        Stream.fromQueueUnterminated(frameQueue).through(outboundMessagesInterpreter(inFlightOutBound, stateSignal, pingTicker))
 
       _ <- transport(TransportConnector[F](inbound, outbound, stateSignal, closeSignal))
 
@@ -222,17 +222,17 @@ object Protocol {
 
       override def cancel: F[Unit] = stopSignal.set(true) *> pingTicker.cancel
 
-      override def send: Frame => F[Unit] = frameQueue.enqueue1
+      override def send: Frame => F[Unit] = frameQueue.offer
 
       override def sendReceive(frame: Frame, messageId: Int): F[Result] =
         for {
           d <- Deferred[F, Result]
           _ <- pendingResults.update(messageId, d)
-          _ <- frameQueue.enqueue1(frame)
+          _ <- frameQueue.offer(frame)
           r <- d.get
         } yield r
 
-      override val messages: Stream[F, Message] = messageQueue.dequeue.interruptWhen(stopSignal)
+      override val messages: Stream[F, Message] = Stream.fromQueueUnterminated(messageQueue).interruptWhen(stopSignal)
 
       override val state: SignallingRef[F, ConnectionState] = stateSignal
     }

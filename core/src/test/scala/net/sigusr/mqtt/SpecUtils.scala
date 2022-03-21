@@ -16,7 +16,6 @@
 
 package net.sigusr.mqtt
 
-import cats.effect.{ContextShift, IO, Timer}
 import org.specs2.matcher.{Expectable, MatchResult, Matcher}
 import scodec.{Attempt, Err}
 
@@ -52,12 +51,5 @@ object SpecUtils {
     val bytes = new Array[Byte](size)
     Random.nextBytes(bytes)
     bytes.toVector
-  }
-
-  class CatsContext {
-    import cats.effect.laws.util.TestContext
-    implicit lazy val ec: TestContext = TestContext.apply()
-    implicit lazy val cs: ContextShift[IO] = IO.contextShift(ec)
-    implicit lazy val ioTimer: Timer[IO] = ec.timer[IO]
   }
 }

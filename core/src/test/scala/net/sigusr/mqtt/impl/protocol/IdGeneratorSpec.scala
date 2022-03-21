@@ -1,15 +1,15 @@
 package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.IO
-import cats.effect.testing.specs2.CatsIO
+import cats.effect.testing.specs2.CatsEffect
 import org.specs2.mutable._
 
-class IdGeneratorSpec extends Specification with CatsIO {
+class IdGeneratorSpec extends Specification with CatsEffect {
 
   "An id generator" should {
 
     "Provide the next id" in {
-      IdGenerator[IO](41).map { g =>
+      IdGenerator[IO](41).flatMap { g =>
         for {
           _ <- g.next
           n <- g.next
@@ -18,7 +18,7 @@ class IdGeneratorSpec extends Specification with CatsIO {
     }
 
     "Provide ids modulus 65535" in {
-      IdGenerator[IO](65534).map { g =>
+      IdGenerator[IO](65534).flatMap { g =>
         for {
           _ <- g.next
           n <- g.next

@@ -17,9 +17,11 @@
 package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.implicits._
-import cats.effect.{Blocker, Concurrent, ContextShift, Fiber, Timer}
+import cats.effect.std.Console
+import cats.effect.{Concurrent, Fiber, Temporal}
 import cats.implicits._
-import fs2.io.tcp.{Socket, SocketGroup}
+import com.comcast.ip4s.SocketAddress
+import fs2.io.net.{Network, Socket}
 import fs2.{Pipe, Stream}
 import net.sigusr.impl.protocol.Direction
 import net.sigusr.impl.protocol.Direction.{In, Out}
@@ -33,35 +35,34 @@ import retry._
 import scodec.Codec
 import scodec.stream.{StreamDecoder, StreamEncoder}
 
-import java.net.InetSocketAddress
 import scala.concurrent.duration._
 
 trait Transport[F[_]] {}
 
 object Transport {
 
-  private def traceTLS[F[_]: Concurrent](b: Boolean) =
-    if (b) Some((m: String) => putStrLn(s"${Console.MAGENTA}[TLS] $m${Console.RESET}")) else None
+  private def traceTLS[F[_] : Console](b: Boolean): Option[(=> String) => F[Unit]] =
+    if (b) Some(m => Console[F].println(s"${scala.Console.MAGENTA}[TLS] $m${scala.Console.RESET}")) else None
 
-  private def tracingPipe[F[_]: Concurrent](d: Direction): Pipe[F, Frame, Frame] =
+  private def tracingPipe[F[_]: Concurrent : Console](d: Direction): Pipe[F, Frame, Frame] =
     frames =>
       for {
         frame <- frames
         _ <-
-          if (d.active) Stream.eval(putStrLn(s" ${d.value} ${d.color}$frame${Console.RESET}"))
+          if (d.active) Stream.eval(Console[F].println(s" ${d.value} ${d.color}$frame${scala.Console.RESET}"))
           else Stream.eval(Concurrent[F].unit)
       } yield frame
 
-  private def connect[F[_]: Concurrent: ContextShift: Timer](
+  private def connect[F[_]: Temporal: Network: Console](
       transportConfig: TransportConfig[F],
       connector: TransportConnector[F]
-  ): F[Fiber[F, Unit]] = {
+  ): F[Fiber[F, Throwable, Unit]] = {
 
     def outgoing(socket: Socket[F]): F[Unit] =
       connector.out
         .through(tracingPipe(Out(transportConfig.traceMessages)))
         .through(StreamEncoder.many[Frame](Codec[Frame].asEncoder).toPipeByte)
-        .through(socket.writes(transportConfig.writeTimeout))
+        .through(socket.writes) // TODO either use or remove these config values (transportConfig.writeTimeout)
         .onComplete {
           Stream.eval(connector.stateSignal.set(Disconnected))
         }
@@ -70,7 +71,7 @@ object Transport {
 
     def incoming(socket: Socket[F]): F[Unit] =
       socket
-        .reads(transportConfig.numReadBytes, transportConfig.readTimeout)
+        .reads // TODO either use or remove these config values (transportConfig.numReadBytes, transportConfig.readTimeout)
         .through(StreamDecoder.many[Frame](Codec[Frame].asDecoder).toPipeByte)
         .through(tracingPipe(In(transportConfig.traceMessages)))
         .through(connector.in)
@@ -80,8 +81,8 @@ object Transport {
         .compile
         .drain
 
-    def closeSignalWatcher(socket: Socket[F]) =
-      connector.closeSignal.discrete.evalMap(if (_) socket.close else Concurrent[F].pure(())).compile.drain
+    def closeSignalWatcher: F[Unit] =
+      connector.closeSignal.discrete.compile.drain // TODO evalMap(if (_) socket.close else Concurrent[F].pure(()))
 
     def loop(): F[Unit] = {
 
@@ -96,34 +97,37 @@ object Transport {
             connector.stateSignal.set(Error(ConnectionFailure(TransportError(err))))
         }
 
-      def pump(socket: Socket[F]) =
+      def pump(socket: Socket[F]): F[Unit] =
         for {
           _ <- connector.stateSignal.set(Connected)
-          _ <- outgoing(socket).race(incoming(socket)).race(closeSignalWatcher(socket))
+          _ <- outgoing(socket).race(incoming(socket)).race(closeSignalWatcher)
         } yield ()
 
+
+
       retryingOnAllErrors(policy, publishError) {
-        Blocker[F].use { blocker =>
-          SocketGroup[F](blocker).use { socketGroup =>
-            socketGroup.client[F](new InetSocketAddress(transportConfig.host, transportConfig.port)).use { socket =>
-              transportConfig.tlsConfig.fold(pump(socket)) { tlsConfig =>
-                tlsConfig
-                  .contextOf(blocker)
-                  .flatMap(_.client(socket, tlsConfig.tlsParameters, traceTLS(transportConfig.traceMessages)).use(pump))
+        Network[F].client(SocketAddress(transportConfig.host, transportConfig.port)).use{ socket =>
+          transportConfig.tlsConfig.fold(pump(socket)) { tlsConfig =>
+            tlsConfig
+              .contextOf
+              .flatMap{ tlsContext =>
+                val builder = tlsContext.clientBuilder(socket).withParameters(tlsConfig.tlsParameters)
+                traceTLS(transportConfig.traceMessages).fold(builder)(builder.withLogging)
+                  .build
+                  .use(pump)
               }
-            }
           }
         }
       } >> connector.stateSignal.get.flatMap {
         case Disconnected => connector.closeSignal.set(false) >> loop()
-        case _            => Concurrent[F].pure(())
+        case _            => Concurrent[F].unit
       }
     }
 
     loop().start
   }
 
-  def apply[F[_]: Concurrent: ContextShift: Timer](
+  def apply[F[_]: Temporal: Network : Console](
       transportConfig: TransportConfig[F]
   )(connector: TransportConnector[F]): F[Transport[F]] =
     for {

@@ -16,10 +16,12 @@
 
 package net.sigusr.mqtt.api
 
-import cats.effect.{Concurrent, ContextShift, Resource, Timer}
+import cats.effect.std.Console
+import cats.effect.{Concurrent, Resource, Temporal}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
+import fs2.io.net.Network
 import net.sigusr.mqtt.api.Errors.ProtocolError
 import net.sigusr.mqtt.api.QualityOfService.AtMostOnce
 import net.sigusr.mqtt.impl.frames.Builders._
@@ -50,12 +52,12 @@ trait Session[F[_]] {
 
 object Session {
 
-  def apply[F[_]: Concurrent: Timer: ContextShift](
+  def apply[F[_]: Temporal: Network: Console](
       transportConfig: TransportConfig[F],
       sessionConfig: SessionConfig
   ): Resource[F, Session[F]] = Resource(fromTransport(transportConfig, sessionConfig))
 
-  private def fromTransport[F[_]: Concurrent: Timer: ContextShift](
+  private def fromTransport[F[_]: Temporal: Network : Console](
       transportConfig: TransportConfig[F],
       sessionConfig: SessionConfig
   ): F[(Session[F], F[Unit])] =
@@ -100,7 +102,7 @@ object Session {
       disconnect(ids, protocol)
     )
 
-  private def disconnect[F[_]: Concurrent](ids: IdGenerator[F], protocol: Protocol[F]) = {
+  private def disconnect[F[_]: Concurrent](ids: IdGenerator[F], protocol: Protocol[F]): F[Unit] = {
     val disconnectMessage = DisconnectFrame(Header())
     ids.cancel *> protocol.send(disconnectMessage)
   }
