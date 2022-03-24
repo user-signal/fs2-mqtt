@@ -81,8 +81,8 @@ object Transport {
         .compile
         .drain
 
-    def closeSignalWatcher: F[Unit] =
-      connector.closeSignal.discrete.compile.drain // TODO evalMap(if (_) socket.close else Concurrent[F].pure(()))
+    def closeSignalWatcher(socket: Socket[F]): F[Unit] =
+      connector.closeSignal.discrete.evalMap(if (_) socket.endOfOutput else Concurrent[F].pure(())).compile.drain
 
     def loop(): F[Unit] = {
 
