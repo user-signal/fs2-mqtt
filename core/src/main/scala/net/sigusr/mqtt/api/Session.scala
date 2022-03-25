@@ -61,7 +61,7 @@ object Session {
   ): F[(Session[F], F[Unit])] =
     for {
 
-      ids <- IdGenerator[F](1)
+      ids <- IdGenerator[F]()
       protocol <- Protocol(sessionConfig, Transport[F](transportConfig))
 
     } yield (
@@ -97,11 +97,11 @@ object Session {
 
         override val state: SignallingRef[F, ConnectionState] = protocol.state
       },
-      disconnect(ids, protocol)
+      disconnect(protocol)
     )
 
-  private def disconnect[F[_]: Concurrent](ids: IdGenerator[F], protocol: Protocol[F]) = {
+  private def disconnect[F[_]](protocol: Protocol[F]) = {
     val disconnectMessage = DisconnectFrame(Header())
-    ids.cancel *> protocol.send(disconnectMessage)
+    protocol.send(disconnectMessage)
   }
 }

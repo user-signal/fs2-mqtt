@@ -16,39 +16,21 @@
 
 package net.sigusr.mqtt.impl.protocol
 
-import cats.effect.implicits._
-import cats.effect.{Concurrent, Fiber}
-import cats.implicits._
-import fs2.concurrent.Queue
-import fs2.{Pure, Stream}
+import cats.effect.Concurrent
+import cats.effect.concurrent.Ref
+import cats.syntax.all._
 
 trait IdGenerator[F[_]] {
-
   def next: F[Int]
-
-  def cancel: F[Unit]
-
 }
 
 object IdGenerator {
 
-  private def idQueue[F[_]: Concurrent](start: Int, q: Queue[F, Int]): F[Fiber[F, Unit]] = {
-    def go(v: Int): Stream[Pure, Int] =
-      v match {
-        case 65535 => Stream.emit(1) ++ go(2)
-        case _     => Stream.emit(v) ++ go(v + 1)
-      }
-    go(start).through(q.enqueue(_)).compile.drain.start
-  }
-
-  def apply[F[_]: Concurrent](start: Int): F[IdGenerator[F]] =
+  def apply[F[_] : Concurrent](): F[IdGenerator[F]] =
     for {
-      q <- Queue.bounded[F, Int](2)
-      f <- idQueue[F](start, q)
+      r <- Ref[F].of(0)
     } yield new IdGenerator[F] {
-
-      override def next: F[Int] = q.dequeue1
-
-      override def cancel: F[Unit] = f.cancel
+      override def next: F[Int] =
+        r.modify(i => ((i + 1) % 65535, i + 1))
     }
 }
