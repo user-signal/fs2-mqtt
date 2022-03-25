@@ -100,7 +100,7 @@ object Transport {
       def pump(socket: Socket[F]): F[Unit] =
         for {
           _ <- connector.stateSignal.set(Connected)
-          _ <- outgoing(socket).race(incoming(socket)).race(closeSignalWatcher)
+          _ <- outgoing(socket).race(incoming(socket)).race(closeSignalWatcher(socket))
         } yield ()
 
 
