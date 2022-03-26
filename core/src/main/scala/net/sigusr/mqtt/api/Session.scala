@@ -17,7 +17,7 @@
 package net.sigusr.mqtt.api
 
 import cats.effect.std.Console
-import cats.effect.{Concurrent, Resource, Temporal}
+import cats.effect.{Resource, Temporal}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef
@@ -63,7 +63,7 @@ object Session {
   ): F[(Session[F], F[Unit])] =
     for {
 
-      ids <- IdGenerator[F](1)
+      ids <- IdGenerator[F]()
       protocol <- Protocol(sessionConfig, Transport[F](transportConfig))
 
     } yield (
@@ -99,11 +99,11 @@ object Session {
 
         override val state: SignallingRef[F, ConnectionState] = protocol.state
       },
-      disconnect(ids, protocol)
+      disconnect(protocol)
     )
 
-  private def disconnect[F[_]: Concurrent](ids: IdGenerator[F], protocol: Protocol[F]): F[Unit] = {
+  private def disconnect[F[_]](protocol: Protocol[F]): F[Unit] = {
     val disconnectMessage = DisconnectFrame(Header())
-    ids.cancel *> protocol.send(disconnectMessage)
+    protocol.send(disconnectMessage)
   }
 }
