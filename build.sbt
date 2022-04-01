@@ -117,6 +117,7 @@ lazy val commonSettings = Seq(
     }
   },
   Test / console / scalacOptions ~= filterConsoleScalacOptions,
+  PB.protocVersion := "3.19.4",
   versionScheme := Some("semver-spec")
 )
 
@@ -128,7 +129,7 @@ lazy val fs2_mqtt = project
       sonatypeProfileName := "net.sigusr"
     )
   )
-  .aggregate(core, examples)
+  .aggregate(core, sparkplug, examples)
 
 lazy val core = project
   .in(file("core"))
@@ -157,9 +158,21 @@ lazy val core = project
     )
   )
 
+lazy val sparkplug = project
+  .in(file("sparkplug"))
+  .dependsOn(core)
+  .settings(
+    commonSettings ++ pgpSettings ++ publishingSettings ++ Seq(
+      name := "fs2-sparkplug",
+      Compile / PB.targets := Seq(
+        scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
+      )
+    )
+  )
+
 lazy val examples = project
   .in(file("examples"))
-  .dependsOn(core)
+  .dependsOn(core, sparkplug)
   .settings(
     commonSettings ++ Seq(
       libraryDependencies ++= Seq(
