@@ -104,10 +104,10 @@ object LocalSparkplugBSubscriber extends App {
         }
         .asInstanceOf[Task[Boolean]]
     }
-  }.fold(_ => ExitCode.failure, _ => ExitCode.success)
+  }.exitCode
 
   private def processMessages(stopSignal: SignallingRef[Task, Boolean]): SparkplugBMessage => Stream[Task, Unit] = {
-    case SparkplugBMessage(LocalSparkplugBSubscriber.stopTopic, _) => Stream.eval_(stopSignal.set(true))
+    case SparkplugBMessage(LocalSparkplugBSubscriber.stopTopic, _) => Stream.exec(stopSignal.set(true))
     case SparkplugBMessage(topic, payload) =>
       Stream.eval(Task {
         println(

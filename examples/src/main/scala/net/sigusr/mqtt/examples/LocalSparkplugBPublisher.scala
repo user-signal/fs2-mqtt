@@ -23,23 +23,20 @@ import fs2.Stream
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.api._
 import net.sigusr.mqtt.sparkplug._
-import org.eclipse.tahu.protobuf.sparkplug_b.Payload.Metric
-import org.eclipse.tahu.protobuf.sparkplug_b.{DataType, Payload}
+import org.eclipse.tahu.protobuf.sparkplug_b.Payload
 
 import scala.concurrent.duration._
 import scala.util.Random
 
 object LocalSparkplugBPublisher extends IOApp {
 
+  case class Device(id: String, name: String, signal: Signal)
+  case class Signal(value: Double, isCurrent: Boolean)
+  val deviceMetrics = ToMetrics.gen[Device]
   val payload: String => Payload = (s: String) =>
     Payload(metrics =
-      Seq(
-        Metric().update(
-          _.name := "schema",
-          _.stringValue := s,
-          _.datatype := DataType.String.index
-        )
-      )
+      deviceMetrics
+        .toMetrics("foo", Device(s, s, Signal(Random.nextDouble(), Random.nextBoolean())))
     )
   private val random: Stream[IO, Int] = Stream.eval(IO.delay(Math.abs(Random.nextInt()))).repeat
   private val topics =

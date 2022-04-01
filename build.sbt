@@ -166,7 +166,14 @@ lazy val sparkplug = project
       name := "fs2-sparkplug",
       Compile / PB.targets := Seq(
         scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
-      )
+      ),
+      libraryDependencies ++= Seq(
+      ) ++ {
+        CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((3, _)) => Seq("com.softwaremill.magnolia1_3" %% "magnolia" % "1.1.1")
+          case _            => Seq("com.softwaremill.magnolia1_2" %% "magnolia" % "1.1.2")
+        }
+      },
     )
   )
 
