@@ -16,7 +16,7 @@
 
 package net.sigusr.mqtt.examples
 
-import cats.effect.{ExitCode, IO}
+import cats.effect.{ExitCode, IO, IOApp}
 import cats.effect.std.Console
 import cats.implicits._
 import com.comcast.ip4s.{Host, Port}
@@ -27,13 +27,13 @@ import net.sigusr.mqtt.api._
 import scala.concurrent.duration._
 import scala.util.Random
 
-object LocalPublisher extends App {
+object LocalPublisher extends IOApp {
 
   private val random: Stream[IO, Int] = Stream.eval(IO(Math.abs(Random.nextInt()))).repeat
   private val topics =
     Stream(("AtMostOnce", AtMostOnce), ("AtLeastOnce", AtLeastOnce), ("ExactlyOnce", ExactlyOnce)).repeat
 
-  def run(args: List[String]): IO[ExitCode] =
+  override def run(args: List[String]): IO[ExitCode] =
     if (args.nonEmpty) {
       val messages = args.toVector
       val transportConfig =
