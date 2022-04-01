@@ -17,7 +17,7 @@
 package net.sigusr.mqtt.api
 
 import cats.effect.std.Console
-import cats.effect.{Concurrent, Resource, Temporal}
+import cats.effect.{Resource, Temporal}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.SignallingRef

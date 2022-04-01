@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build:
+    name: Build and test (All)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -11,7 +12,18 @@ jobs:
         uses: olafurpg/setup-scala@v10
       - name: Cache SBT
         uses: coursier/cache-action@v3
-      - name: Compile (All) and Test/Coverage (Scala 2 Only)
-        run: sbt +clean coverage test coverageReport coverageOff +test
+      - run: sbt +clean +test
+
+  coverage:
+    name: Generate coverage report (2.13.8 JVM only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: olafurpg/setup-scala@v10
+      - name: Cache SBT
+        uses: coursier/cache-action@v3
+      - run: sbt ++2.13.8 coverage test coverageReport
       - name: Upload code coverage data
         run: bash <(curl -s https://codecov.io/bash)
+    

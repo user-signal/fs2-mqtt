@@ -18,17 +18,17 @@ package net.sigusr.mqtt.examples
 
 import cats.effect.std.Console
 import cats.implicits._
-import com.comcast.ip4s.IpLiteralSyntax
+import com.comcast.ip4s.{Host, Port}
 import fs2.Stream
 import fs2.concurrent.SignallingRef
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.api.RetryConfig.Custom
 import net.sigusr.mqtt.api._
 import retry.RetryPolicies
+import zio._
 import zio.duration.Duration
 import zio.interop.catz._
 import zio.interop.catz.implicits._
-import zio._
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
@@ -53,8 +53,8 @@ object LocalSubscriber extends App {
     )
     val transportConfig =
       TransportConfig[Task](
-        host"localhost",
-        port"1883",
+        Host.fromString("localhost").get,
+        Port.fromString("1883").get,
         // TLS support looks like
         // 8883,
         // tlsConfig = Some(TLSConfig(TLSContextKind.System)),

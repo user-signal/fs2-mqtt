@@ -1,20 +1,16 @@
 [akka-mqtt]: https://github.com/fcabestre/Scala-MQTT-client
 [akka]: http://akka.io
 [apache-licence]: http://github.com/user-signal/fs2-mqtt/blob/master/LICENSE
-[build-status-icon]: https://travis-ci.org/user-signal/fs2-mqtt.svg?branch=master
-[build-status]: https://travis-ci.org/user-signal/fs2-mqtt
-[cats-effect-IO]: https://typelevel.org/cats-effect/datatypes/io.html
 [cats-effect-retry]: https://cb372.github.io/cats-retry
-[cats-effet]: https://github.com/typelevel/cats-effect
+[cats-effect]: https://github.com/typelevel/cats-effect
 [cats]: https://typelevel.org/cats
-[ci]: https://travis-ci.org/user-signal/fs2-mqtt
+[ci]: https://github.com/user-signal/fs2-mqtt/actions
 [coverage-status-icon]: https://coveralls.io/repos/user-signal/fs2-mqtt/badge.png?branch=master
 [coverage-status]: https://coveralls.io/r/user-signal/fs2-mqtt?branch=master
 [fs2]: https://fs2.io
 [local publisher]: https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalPublisher.scala
 [local subscriber]: https://github.com/user-signal/fs2-mqtt/blob/master/examples/src/main/scala/net/sigusr/mqtt/examples/LocalSubscriber.scala
 [monix]: https://monix.io
-[monocle]: https://optics-dev.github.io/Monocle
 [mosquitto]: http://mosquitto.org
 [practical-fp]: https://leanpub.com/pfp-scala
 [scala-js]: https://www.scala-js.org
@@ -27,7 +23,7 @@
 [tpolecat]: https://twitter.com/tpolecat
 [zio]: https://zio.dev
 
-# A pure functional Scala MQTT client library [![Build Status][build-status-icon]][build-status] [![codecov](https://codecov.io/gh/user-signal/fs2-mqtt/branch/master/graph/badge.svg?token=08C9HM2J0L)](https://codecov.io/gh/user-signal/fs2-mqtt)
+# A pure functional Scala MQTT client library[![codecov](https://codecov.io/gh/user-signal/fs2-mqtt/branch/master/graph/badge.svg?token=08C9HM2J0L)](https://codecov.io/gh/user-signal/fs2-mqtt)
 ## Back then...
 
 Late 2014, I initiated an [MQTT client library for Scala][akka-mqtt] side project. 
@@ -41,8 +37,8 @@ building, from the ground up, a data access library for *Postgres* based on [FS2
 
 ## Oops!… I did it again.
 
-I rushed to [Skunk][skunk-repo], which as been inspirational, and took the opportunity of these 
-lock down days to learn a lot about [cats][cats], [cats effects][cats-effet] 
+I rushed to [Skunk][skunk-repo], which as been inspirational, and took the opportunity of the 
+lock-down days, around april 2020, to learn a lot about [cats][cats], [cats effect][cats-effect] 
 and of course *FS2*. I even found the integration between *FS2* and *scodec*, [scodec-stream][scodec-stream], 
 to be utterly useful.
 
@@ -53,7 +49,7 @@ client library.
 ## Current status
 
 This library is build in the *tagless final* style in order to make it, as much as possible, *IO monad* agnostic for the
-client code using it. It's internals are nevertheless mainly build around *FS2*, *cats effetcs* typeclasses and concurrency 
+client code using it. It's internals are nevertheless mainly build around *FS2*, *cats effect* typeclasses and concurrency 
 primitives.  
 
 It implements almost all the *MQTT* `3.1.1` protocol, managing (re)connections and in flight messages, and allows interacting 
@@ -67,12 +63,12 @@ Still, there's work ahead:
  * …
 
 For examples on how to use it, you can have a look at the [local subscriber][local subscriber] or the [local publisher][local publisher] 
-code. The former is build using [ZIO][zio] while the later is based on [Monix][monix].
+code. The former is build using [ZIO][zio] while the later is based on [Cats Effect IO][cats-effect].
 
 ## Releases
 
-Artifacts are available at [Sonatype OSS Repository Hosting service][sonatype], even the ```SNAPSHOTS``` automatically
-built by [Travis CI][ci]. To include the Sonatype repositories in your SBT build you should add,
+Artifacts are available at [Sonatype OSS Repository Hosting service][sonatype], even the ```SNAPSHOTS``` are automatically
+built by [GitHub Actions][ci]. To include the Sonatype repositories in your SBT build you should add,
 
 ```scala
 resolvers ++= Seq(
@@ -85,10 +81,10 @@ In case you want to easily give a try to this library, without the burden of add
 to Maven Central. In this case just add,
 
 ```scala
-scalaVersion := "3.0.0"
+scalaVersion := "3.1.1"
 
 libraryDependencies ++= Seq(
-    "net.sigusr" %% "fs2-mqtt" % "0.5.0"
+    "net.sigusr" %% "fs2-mqtt" % "1.0.0"
 )
 ```
 
@@ -96,13 +92,14 @@ libraryDependencies ++= Seq(
 
 Roughly speaking this library depends on:
  * [Scala][scala] of course, but not [Scala.js][scala-js] even thought this should be fairly easy…
+ * [Cats effect][cats-effect]
  * [FS2][fs2] 
  * [scodec][scodec] and [scodec-stream][scodec-stream]
- * [Cats effect][cats-effet] for some internal concurrency stuff
  * [Cats effects retry][cats-effect-retry] to manage connection attempts
  
-This library should work seamlessly with various compatible IO monads: [cats effects IO][cats-effect-IO] 
-of course, but [Monix][monix] and [ZIO][zio] as well as both support *cats effects* typeclasses.
+It should work seamlessly with various compatible IO monads: [Cats Effect IO][cats-effect] 
+of course and [ZIO][zio] as it supports *cats effect* typeclasses. [Monix][monix] used to be supported as well, but
+since version `1.0.0` and the migration to [cats effect][cats-effect]`3.x`, this is no more the case.
 
 ## License
 

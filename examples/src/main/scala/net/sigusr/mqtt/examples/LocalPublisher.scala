@@ -16,32 +16,30 @@
 
 package net.sigusr.mqtt.examples
 
+import cats.effect.{ExitCode, IO}
 import cats.effect.std.Console
 import cats.implicits._
-import com.comcast.ip4s.IpLiteralSyntax
+import com.comcast.ip4s.{Host, Port}
 import fs2.Stream
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
 import net.sigusr.mqtt.api._
-import zio.interop.catz._
-import zio.interop.catz.implicits._
-import zio.{ExitCode, _}
 
 import scala.concurrent.duration._
 import scala.util.Random
 
 object LocalPublisher extends App {
 
-  private val random: Stream[Task, Int] = Stream.eval(Task(Math.abs(Random.nextInt()))).repeat
+  private val random: Stream[IO, Int] = Stream.eval(IO(Math.abs(Random.nextInt()))).repeat
   private val topics =
     Stream(("AtMostOnce", AtMostOnce), ("AtLeastOnce", AtLeastOnce), ("ExactlyOnce", ExactlyOnce)).repeat
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
+  def run(args: List[String]): IO[ExitCode] =
     if (args.nonEmpty) {
       val messages = args.toVector
       val transportConfig =
-        TransportConfig[Task](
-          host"localhost",
-          port"1883",
+        TransportConfig[IO](
+          Host.fromString("localhost").get,
+          Port.fromString("1883").get,
           // TLS support looks like
           // 8883,
           // tlsConfig = Some(TLSConfig(TLSContextKind.System)),
@@ -49,12 +47,12 @@ object LocalPublisher extends App {
         )
       val sessionConfig =
         SessionConfig(s"$localPublisher", user = Some(localPublisher), password = Some("yala"), keepAlive = 5)
-      implicit val console: Console[Task] = Console.make[Task]
-      Session[Task](transportConfig, sessionConfig)
+      implicit val console: Console[IO] = Console.make[IO]
+      Session[IO](transportConfig, sessionConfig)
         .use { session =>
           val sessionStatus = session.state.discrete
-            .evalMap(logSessionStatus[Task])
-            .evalMap(onSessionError[Task])
+            .evalMap(logSessionStatus[IO])
+            .evalMap(onSessionError[IO])
             .compile
             .drain
           val publisher = (for {
@@ -63,7 +61,7 @@ object LocalPublisher extends App {
             topic = m._2._1
             qos = m._2._2
             _ <- Stream.eval(
-              putStrLn[Task](
+              putStrLn[IO](
                 s"Publishing on topic ${scala.Console.CYAN}$topic${scala.Console.RESET} with QoS " +
                   s"${scala.Console.CYAN}${qos.show}${scala.Console.RESET} message ${scala.Console.BOLD}$message${scala.Console.RESET}"
               )
@@ -71,19 +69,21 @@ object LocalPublisher extends App {
             _ <- Stream.eval(session.publish(topic, payload(message), qos))
           } yield ()).compile.drain
 
-          publisher.race(sessionStatus)
+          for {
+            _ <- IO.race(publisher, sessionStatus)
+          } yield ExitCode.Success
         }
-        .fold(_ => ExitCode.failure, _ => ExitCode.success)
+        .handleErrorWith(_ => IO.pure(ExitCode.Error))
     } else
-      putStrLn[Task](s"${scala.Console.RED}At least one or more « messages » should be provided.${scala.Console.RESET}")
-        .fold(_ => ExitCode.failure, _ => ExitCode.success)
+      putStrLn[IO](s"${scala.Console.RED}At least one or more « messages » should be provided.${scala.Console.RESET}")
+        .as(ExitCode.Error)
 
-  private def ticks(): Stream[Task, Unit] =
+  private def ticks(): Stream[IO, Unit] =
     random.flatMap { r =>
       val interval = r % 2000 + 1000
-      Stream.sleep[Task](interval.milliseconds)
+      Stream.sleep[IO](interval.milliseconds)
     }
 
-  private def randomMessage(messages: Vector[String]): Stream[Task, String] =
+  private def randomMessage(messages: Vector[String]): Stream[IO, String] =
     random.flatMap(r => Stream.emit(messages(r % messages.length)))
 }

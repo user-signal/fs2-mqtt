@@ -24,7 +24,7 @@ val filterConsoleScalacOptions = { options: Seq[String] =>
 
 lazy val commonSettings = Seq(
   homepage := Some(url("https://github.com/user-signal/fs2-mqtt")),
-  licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+  licenses := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
   developers := List(
     Developer(
       "fcabestre",
@@ -34,7 +34,7 @@ lazy val commonSettings = Seq(
     )
   ),
   organization := "net.sigusr",
-  scalaVersion := scala213,
+  scalaVersion := scala3,
   crossScalaVersions := supportedScalaVersion,
   coverageExcludedPackages := "net.sigusr.mqtt.examples",
   scalacOptions := Seq(
@@ -139,8 +139,8 @@ lazy val core = project
       libraryDependencies ++= Seq(
         ("org.specs2" %% "specs2-core" % "4.14.1" % "test").cross(CrossVersion.for3Use2_13),
         "org.typelevel" %% "cats-effect-testing-specs2" % "1.4.0" % "test",
-        "org.typelevel" %% "cats-effect-laws" % "3.3.7" % "test",
-        "org.typelevel" %% "cats-effect-testkit"% "3.3.7" % "test",
+        "org.typelevel" %% "cats-effect-laws" % "3.3.8" % "test",
+        "org.typelevel" %% "cats-effect-testkit"% "3.3.8" % "test",
         "org.scodec" %% "scodec-stream" % "3.0.2",
         "co.fs2" %% "fs2-io" % "3.2.5",
         "org.typelevel" %% "cats-effect" % "3.3.8",

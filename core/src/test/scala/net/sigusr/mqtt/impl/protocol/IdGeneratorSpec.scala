@@ -2,7 +2,6 @@ package net.sigusr.mqtt.impl.protocol
 
 import cats.effect.IO
 import cats.effect.testing.specs2.CatsEffect
-import cats.syntax.all._
 import org.specs2.mutable._
 
 // http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718025
