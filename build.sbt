@@ -3,7 +3,7 @@ import sbt._
 
 lazy val scala3 = "3.3.0"
 lazy val scala213 = "2.13.10"
-lazy val scala212 = "2.12.17"
+lazy val scala212 = "2.12.18"
 lazy val supportedScalaVersion = Seq(scala3, scala213, scala212)
 
 lazy val IntegrationTest = config("it").extend(Test)
