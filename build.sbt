@@ -150,7 +150,7 @@ lazy val core = project
           case Some((3, _)) => Seq()
           case _ =>
             Seq(
-              ("com.beachape" %% "enumeratum" % "1.7.2").cross(CrossVersion.for3Use2_13)
+              ("com.beachape" %% "enumeratum" % "1.7.3").cross(CrossVersion.for3Use2_13)
             )
         }
       }
