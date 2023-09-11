@@ -1,7 +1,7 @@
 import sbt.Keys._
 import sbt._
 
-lazy val scala3 = "3.3.0"
+lazy val scala3 = "3.3.1"
 lazy val scala213 = "2.13.10"
 lazy val scala212 = "2.12.18"
 lazy val supportedScalaVersion = Seq(scala3, scala213, scala212)
@@ -137,7 +137,7 @@ lazy val core = project
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := "fs2-mqtt",
       libraryDependencies ++= Seq(
-        ("org.specs2" %% "specs2-core" % "4.20.0" % "test").cross(CrossVersion.for3Use2_13),
+        ("org.specs2" %% "specs2-core" % "4.20.2" % "test").cross(CrossVersion.for3Use2_13),
         "org.typelevel" %% "cats-effect-testing-specs2" % "1.4.0" % "test",
         "org.typelevel" %% "cats-effect-laws" % "3.3.8" % "test",
         "org.typelevel" %% "cats-effect-testkit"% "3.3.8" % "test",
@@ -150,7 +150,7 @@ lazy val core = project
           case Some((3, _)) => Seq()
           case _ =>
             Seq(
-              ("com.beachape" %% "enumeratum" % "1.7.2").cross(CrossVersion.for3Use2_13)
+              ("com.beachape" %% "enumeratum" % "1.7.3").cross(CrossVersion.for3Use2_13)
             )
         }
       }
