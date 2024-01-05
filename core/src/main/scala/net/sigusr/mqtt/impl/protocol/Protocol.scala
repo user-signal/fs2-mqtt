@@ -16,11 +16,11 @@
 
 package net.sigusr.mqtt.impl.protocol
 
-import cats.effect.{Concurrent, Deferred, Ref, Temporal}
 import cats.effect.std.Queue
+import cats.effect.{Concurrent, Deferred, Ref, Temporal}
 import cats.implicits._
 import fs2.concurrent.SignallingRef
-import fs2.{INothing, Pipe, Pull, Stream}
+import fs2.{Pipe, Pull, Stream}
 import net.sigusr.mqtt.api.ConnectionState.{Connected, Disconnected, Error, SessionStarted}
 import net.sigusr.mqtt.api.Errors.{ConnectionFailure, ProtocolError}
 import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnce}
@@ -61,7 +61,7 @@ object Protocol {
         pingAcknowledged: Ref[F, Boolean]
     ): Pipe[F, Frame, Unit] = {
 
-      def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, INothing, Unit] =
+      def loop(s: Stream[F, Frame], inFlightInBound: Set[Int]): Pull[F, Nothing, Unit] =
         s.pull.uncons1.flatMap {
           case Some((hd, tl)) =>
             hd match {

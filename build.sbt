@@ -1,5 +1,5 @@
-import sbt.Keys._
-import sbt._
+import sbt.Keys.*
+import sbt.*
 
 lazy val scala3 = "3.3.1"
 lazy val scala213 = "2.13.12"
@@ -139,11 +139,11 @@ lazy val core = project
       libraryDependencies ++= Seq(
         ("org.specs2" %% "specs2-core" % "4.20.3" % "test").cross(CrossVersion.for3Use2_13),
         "org.typelevel" %% "cats-effect-testing-specs2" % "1.4.0" % "test",
-        "org.typelevel" %% "cats-effect-laws" % "3.3.8" % "test",
-        "org.typelevel" %% "cats-effect-testkit"% "3.3.8" % "test",
+        "org.typelevel" %% "cats-effect-laws" % "3.4.7" % "test",
+        "org.typelevel" %% "cats-effect-testkit"% "3.4.7" % "test",
         "org.scodec" %% "scodec-stream" % "3.0.2",
-        "co.fs2" %% "fs2-io" % "3.2.5",
-        "org.typelevel" %% "cats-effect" % "3.3.8",
+        "co.fs2" %% "fs2-io" % "3.7.0",
+        "org.typelevel" %% "cats-effect" % "3.4.11",
         "com.github.cb372" %% "cats-retry" % "3.1.0"
       ) ++ {
         CrossVersion.partialVersion(scalaVersion.value) match {
@@ -160,14 +160,7 @@ lazy val core = project
 lazy val examples = project
   .in(file("examples"))
   .dependsOn(core)
-  .settings(
-    commonSettings ++ Seq(
-      libraryDependencies ++= Seq(
-        "dev.zio" %% "zio-interop-cats" % "3.2.9.1"
-      ),
-      publish / skip := true
-    )
-  )
+  .settings(commonSettings)
 
 def itFilter(name: String): Boolean = name.startsWith("net.sigusr.mqtt.integration")
 def unitFilter(name: String): Boolean = !itFilter(name)
@@ -198,7 +191,7 @@ def licenseDistribution = "repo"
 def scmUrl = projectUrl
 def scmConnection = "scm:git:" + scmUrl
 
-def publishingSettings: Seq[Setting[_]] =
+def publishingSettings: Seq[Setting[?]] =
   Seq(
     Test / publishArtifact := false,
     pomIncludeRepository := (_ => false)

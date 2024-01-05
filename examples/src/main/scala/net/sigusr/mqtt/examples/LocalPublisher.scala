@@ -48,8 +48,7 @@ object LocalPublisher extends IOApp {
       val sessionConfig =
         SessionConfig(s"$localPublisher", user = Some(localPublisher), password = Some("yala"), keepAlive = 5)
       implicit val console: Console[IO] = Console.make[IO]
-      Session[IO](transportConfig, sessionConfig)
-        .use { session =>
+      Session[IO](transportConfig, sessionConfig).use { session =>
           val sessionStatus = session.state.discrete
             .evalMap(logSessionStatus[IO])
             .evalMap(onSessionError[IO])
@@ -72,8 +71,7 @@ object LocalPublisher extends IOApp {
           for {
             _ <- IO.race(publisher, sessionStatus)
           } yield ExitCode.Success
-        }
-        .handleErrorWith(_ => IO.pure(ExitCode.Error))
+        }.handleErrorWith(_ => IO.pure(ExitCode.Error))
     } else
       putStrLn[IO](s"${scala.Console.RED}At least one or more « messages » should be provided.${scala.Console.RESET}")
         .as(ExitCode.Error)

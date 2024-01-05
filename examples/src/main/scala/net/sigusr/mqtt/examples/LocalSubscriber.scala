@@ -17,6 +17,7 @@
 package net.sigusr.mqtt.examples
 
 import cats.effect.std.Console
+import cats.effect.{ExitCode, IO, IOApp}
 import cats.implicits._
 import com.comcast.ip4s.{Host, Port}
 import fs2.Stream
@@ -25,15 +26,11 @@ import net.sigusr.mqtt.api.QualityOfService.{AtLeastOnce, AtMostOnce, ExactlyOnc
 import net.sigusr.mqtt.api.RetryConfig.Custom
 import net.sigusr.mqtt.api._
 import retry.RetryPolicies
-import zio._
-import zio.duration.Duration
-import zio.interop.catz._
-import zio.interop.catz.implicits._
 
 import java.util.concurrent.TimeUnit
-import scala.concurrent.duration._
+import scala.concurrent.duration.{FiniteDuration, SECONDS}
 
-object LocalSubscriber extends App {
+object LocalSubscriber extends IOApp {
 
   private val stopTopic: String = s"$localSubscriber/stop"
   private val subscribedTopics: Vector[(String, QualityOfService)] = Vector(
@@ -45,14 +42,14 @@ object LocalSubscriber extends App {
 
   private val unsubscribedTopics: Vector[String] = Vector("AtMostOnce", "AtLeastOnce", "ExactlyOnce")
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
-    val retryConfig: Custom[Task] = Custom[Task](
+  override def run(args: List[String]): IO[ExitCode] = {
+    val retryConfig: Custom[IO] = Custom[IO](
       RetryPolicies
-        .limitRetries[Task](5)
-        .join(RetryPolicies.fullJitter[Task](2.seconds))
+        .limitRetries[IO](5)
+        .join(RetryPolicies.fullJitter[IO](FiniteDuration(2, SECONDS)))
     )
     val transportConfig =
-      TransportConfig[Task](
+      TransportConfig[IO](
         Host.fromString("localhost").get,
         Port.fromString("1883").get,
         // TLS support looks like
@@ -69,47 +66,45 @@ object LocalSubscriber extends App {
         password = Some("yolo"),
         keepAlive = 5
       )
-    implicit val console: Console[Task] = Console.make[Task]
-    Session[Task](transportConfig, sessionConfig).use { session =>
-      SignallingRef[Task, Boolean](false)
-        .flatMap { stopSignal =>
+    implicit val console: Console[IO] = Console.make[IO]
+    Session[IO](transportConfig, sessionConfig).use { session =>
+      SignallingRef[IO, Boolean](false).flatMap { stopSignal =>
           val sessionStatus = session.state.discrete
-            .evalMap(logSessionStatus[Task])
-            .evalMap(onSessionError[Task])
+            .evalMap(logSessionStatus[IO])
+            .evalMap(onSessionError[IO])
             .interruptWhen(stopSignal)
             .compile
             .drain
           val subscriber = for {
             s <- session.subscribe(subscribedTopics)
             _ <- s.traverse { p =>
-              putStrLn[Task](
+              putStrLn[IO](
                 s"Topic ${scala.Console.CYAN}${p._1}${scala.Console.RESET} subscribed with QoS " +
                   s"${scala.Console.CYAN}${p._2.show}${scala.Console.RESET}"
               )
             }
-            _ <- ZIO.sleep(Duration(23, TimeUnit.SECONDS))
+            _ <- IO.sleep(FiniteDuration(23, TimeUnit.SECONDS))
             _ <- session.unsubscribe(unsubscribedTopics)
             _ <-
-              putStrLn[Task](s"Topic ${scala.Console.CYAN}${unsubscribedTopics.mkString(", ")}${scala.Console.RESET} unsubscribed")
+              putStrLn[IO](s"Topic ${scala.Console.CYAN}${unsubscribedTopics.mkString(", ")}${scala.Console.RESET} unsubscribed")
             _ <- stopSignal.discrete.compile.drain
           } yield ()
           val reader = session.messages.flatMap(processMessages(stopSignal)).interruptWhen(stopSignal).compile.drain
           for {
-            _ <- sessionStatus <&> subscriber.race(reader)
-          } yield ()
+            _ <- IO.racePair(sessionStatus, subscriber.race(reader))
+          } yield ExitCode.Success
         }
-        .asInstanceOf[Task[Boolean]]
-    }
-  }.fold(_ => ExitCode.failure, _ => ExitCode.success)
+    }.handleErrorWith(_ => IO.pure(ExitCode.Error))
+  }
 
-  private def processMessages(stopSignal: SignallingRef[Task, Boolean]): Message => Stream[Task, Unit] = {
+  private def processMessages(stopSignal: SignallingRef[IO, Boolean]): Message => Stream[IO, Unit] = {
     case Message(LocalSubscriber.stopTopic, _) => Stream.exec(stopSignal.set(true))
     case Message(topic, payload) =>
-      Stream.eval(Task {
-        println(
+      Stream.eval(
+        putStrLn[IO](
           s"Topic ${scala.Console.CYAN}$topic${scala.Console.RESET}: " +
             s"${scala.Console.BOLD}${new String(payload.toArray, "UTF-8")}${scala.Console.RESET}"
         )
-      })
+      )
   }
 }

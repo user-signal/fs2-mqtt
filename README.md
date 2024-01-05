@@ -63,7 +63,7 @@ Still, there's work ahead:
  * …
 
 For examples on how to use it, you can have a look at the [local subscriber][local subscriber] or the [local publisher][local publisher] 
-code. The former is build using [ZIO][zio] while the later is based on [Cats Effect IO][cats-effect].
+code. Both are based on [Cats Effect IO][cats-effect].
 
 ## Releases
 
@@ -81,10 +81,10 @@ In case you want to easily give a try to this library, without the burden of add
 to Maven Central. In this case just add,
 
 ```scala
-scalaVersion := "3.1.1"
+scalaVersion := "3.3.1"
 
 libraryDependencies ++= Seq(
-    "net.sigusr" %% "fs2-mqtt" % "1.0.0"
+    "net.sigusr" %% "fs2-mqtt" % "1.0.1"
 )
 ```
 
