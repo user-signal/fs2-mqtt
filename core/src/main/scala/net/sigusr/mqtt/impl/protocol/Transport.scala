@@ -33,7 +33,7 @@ import net.sigusr.mqtt.impl.frames.Frame
 import retry.RetryDetails.{GivingUp, WillDelayAndRetry}
 import retry._
 import scodec.Codec
-import scodec.stream.{StreamDecoder, StreamEncoder}
+import fs2.interop.scodec.{StreamDecoder, StreamEncoder}
 
 import scala.concurrent.duration._
 
