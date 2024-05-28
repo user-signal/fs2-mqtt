@@ -137,12 +137,12 @@ lazy val core = project
     commonSettings ++ testSettings ++ pgpSettings ++ publishingSettings ++ Seq(
       name := "fs2-mqtt",
       libraryDependencies ++= Seq(
-        ("org.specs2" %% "specs2-core" % "4.20.5" % "test").cross(CrossVersion.for3Use2_13),
+        ("org.specs2" %% "specs2-core" % "4.20.6" % "test").cross(CrossVersion.for3Use2_13),
         "org.typelevel" %% "cats-effect-testing-specs2" % "1.4.0" % "test",
         "org.typelevel" %% "cats-effect-laws" % "3.4.7" % "test",
         "org.typelevel" %% "cats-effect-testkit"% "3.4.7" % "test",
-        "org.scodec" %% "scodec-stream" % "3.0.2",
-        "co.fs2" %% "fs2-io" % "3.7.0",
+        "co.fs2" %% "fs2-io" % "3.10.2",
+        "co.fs2" %% "fs2-scodec" % "3.10.2",
         "org.typelevel" %% "cats-effect" % "3.4.11",
         "com.github.cb372" %% "cats-retry" % "3.1.0"
       ) ++ {
