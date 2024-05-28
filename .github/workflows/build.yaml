@@ -15,7 +15,7 @@ jobs:
       - run: sbt +clean +test
 
   coverage:
-    name: Generate coverage report (2.13.10 JVM only)
+    name: Generate coverage report (2.13.13 JVM only)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -23,7 +23,7 @@ jobs:
         uses: olafurpg/setup-scala@v10
       - name: Cache SBT
         uses: coursier/cache-action@v3
-      - run: sbt ++2.13.10 coverage test coverageReport
+      - run: sbt ++2.13.13 coverage test coverageReport
       - name: Upload code coverage data
         run: bash <(curl -s https://codecov.io/bash)
     
