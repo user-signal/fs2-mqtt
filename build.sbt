@@ -142,7 +142,7 @@ lazy val core = project
         "org.typelevel" %% "cats-effect-laws" % "3.4.7" % "test",
         "org.typelevel" %% "cats-effect-testkit"% "3.4.7" % "test",
         "co.fs2" %% "fs2-io" % "3.10.2",
-        "co.fs2" %% "fs2-scodec" % "3.11.0",
+        "co.fs2" %% "fs2-scodec" % "3.12.0",
         "org.typelevel" %% "cats-effect" % "3.4.11",
         "com.github.cb372" %% "cats-retry" % "3.1.0"
       ) ++ {
